@@ -1,8 +1,7 @@
 import { writable } from 'svelte/store';
-import { supabase } from '$lib/supabase';
-import type { Achievement } from '$lib/types';
-import { achievementStore } from './achievements';
-import { achievementStatsStore } from './achievement-stats';
+import type { Achievement, AchievementChallenge, UserAchievementChallenge } from '$lib/types';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 
 interface Challenge {
     id: string;
@@ -92,31 +91,58 @@ function createChallengeStore() {
             update(store => ({ ...store, loading: true, error: null }));
 
             try {
-                const { data: challenges, error: challengesError } = await supabase
-                    .from('achievement_challenges')
-                    .select('*')
-                    .gte('end_time', new Date().toISOString());
+                const now = new Date();
+                const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const startOfWeek = new Date(now);
+                startOfWeek.setDate(now.getDate() - now.getDay());
 
-                if (challengesError) throw challengesError;
+                // Load daily challenges
+                const dailyChallengesRef = collection(db, 'achievement_challenges');
+                const dailyChallengesQuery = query(dailyChallengesRef, 
+                    where('type', '==', 'daily'),
+                    where('startDate', '>=', startOfDay),
+                    orderBy('startDate')
+                );
+                const dailyChallengesSnapshot = await getDocs(dailyChallengesQuery);
+                const dailyChallenges = dailyChallengesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as Challenge[];
 
-                const { data: competitions, error: competitionsError } = await supabase
-                    .from('achievement_competitions')
-                    .select('*')
-                    .gte('end_time', new Date().toISOString());
+                // Load weekly challenges
+                const weeklyChallengesQuery = query(dailyChallengesRef,
+                    where('type', '==', 'weekly'),
+                    where('startDate', '>=', startOfWeek),
+                    orderBy('startDate')
+                );
+                const weeklyChallengesSnapshot = await getDocs(weeklyChallengesQuery);
+                const weeklyChallenges = weeklyChallengesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as Challenge[];
 
-                if (competitionsError) throw competitionsError;
-
-                const { data: playerProgress, error: progressError } = await supabase
-                    .from('player_challenges')
-                    .select('*');
-
-                if (progressError) throw progressError;
+                // Load user's challenge progress
+                const userChallengesRef = collection(db, 'player_challenges');
+                const userChallengesQuery = query(userChallengesRef,
+                    where('userId', '==', auth.currentUser.uid),
+                    where('startDate', '>=', startOfWeek)
+                );
+                const userChallengesSnapshot = await getDocs(userChallengesQuery);
+                const userChallenges = userChallengesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as {
+                    challenge_id: string;
+                    progress: number;
+                    completed: boolean;
+                    perfect: boolean;
+                    rewards_claimed: boolean;
+                }[];
 
                 update(store => ({
                     ...store,
-                    activeChallenges: challenges,
-                    activeCompetitions: competitions,
-                    playerChallenges: playerProgress,
+                    activeChallenges: [...dailyChallenges, ...weeklyChallenges],
+                    playerChallenges: userChallenges,
                     loading: false
                 }));
             } catch (error) {
@@ -131,17 +157,16 @@ function createChallengeStore() {
 
         async joinChallenge(challengeId: string) {
             try {
-                const { error } = await supabase
-                    .from('player_challenges')
-                    .insert({
-                        challenge_id: challengeId,
-                        progress: 0,
-                        completed: false,
-                        perfect: false,
-                        rewards_claimed: false
-                    });
-
-                if (error) throw error;
+                const userChallengesRef = collection(db, 'player_challenges');
+                await addDoc(userChallengesRef, {
+                    userId: auth.currentUser.uid,
+                    challengeId,
+                    progress: 0,
+                    startDate: serverTimestamp(),
+                    completed: false,
+                    perfect: false,
+                    rewards_claimed: false
+                });
 
                 await this.loadChallenges();
             } catch (error) {
@@ -151,19 +176,20 @@ function createChallengeStore() {
 
         async joinCompetition(competitionId: string) {
             try {
-                const { data: competition } = await supabase
-                    .from('achievement_competitions')
-                    .select('entry_fee')
-                    .eq('id', competitionId)
-                    .single();
+                const competitionsRef = collection(db, 'achievement_competitions');
+                const competitionQuery = query(competitionsRef,
+                    where('id', '==', competitionId)
+                );
+                const competitionSnapshot = await getDocs(competitionQuery);
+                const competition = competitionSnapshot.docs[0].data();
 
-                const { error } = await supabase
-                    .rpc('join_competition', {
-                        competition_id: competitionId,
-                        entry_fee: competition.entry_fee
-                    });
-
-                if (error) throw error;
+                await addDoc(collection(db, 'player_competitions'), {
+                    userId: auth.currentUser.uid,
+                    competitionId,
+                    rank: 0,
+                    score: 0,
+                    rewards_claimed: false
+                });
 
                 await this.loadChallenges();
             } catch (error) {
@@ -173,21 +199,29 @@ function createChallengeStore() {
 
         async updateProgress(challengeId: string, progress: number) {
             try {
-                const { error } = await supabase
-                    .from('player_challenges')
-                    .update({ progress })
-                    .eq('challenge_id', challengeId);
+                const userChallengesRef = collection(db, 'player_challenges');
+                const userChallengeQuery = query(userChallengesRef,
+                    where('userId', '==', auth.currentUser.uid),
+                    where('challengeId', '==', challengeId)
+                );
+                const userChallengeSnapshot = await getDocs(userChallengeQuery);
 
-                if (error) throw error;
+                if (!userChallengeSnapshot.empty) {
+                    const userChallenge = userChallengeSnapshot.docs[0];
+                    await updateDoc(userChallenge.ref, {
+                        progress,
+                        updatedAt: serverTimestamp()
+                    });
 
-                update(store => ({
-                    ...store,
-                    playerChallenges: store.playerChallenges.map(pc =>
-                        pc.challenge_id === challengeId
-                            ? { ...pc, progress }
-                            : pc
-                    )
-                }));
+                    update(store => ({
+                        ...store,
+                        playerChallenges: store.playerChallenges.map(pc =>
+                            pc.challenge_id === challengeId
+                                ? { ...pc, progress }
+                                : pc
+                        )
+                    }));
+                }
             } catch (error) {
                 console.error('Error updating progress:', error);
             }
@@ -195,25 +229,24 @@ function createChallengeStore() {
 
         async completeChallenge(challengeId: string, perfect: boolean) {
             try {
-                const { error } = await supabase
-                    .from('player_challenges')
-                    .update({
+                const userChallengesRef = collection(db, 'player_challenges');
+                const userChallengeQuery = query(userChallengesRef,
+                    where('userId', '==', auth.currentUser.uid),
+                    where('challengeId', '==', challengeId)
+                );
+                const userChallengeSnapshot = await getDocs(userChallengeQuery);
+
+                if (!userChallengeSnapshot.empty) {
+                    const userChallenge = userChallengeSnapshot.docs[0];
+                    await updateDoc(userChallenge.ref, {
                         completed: true,
                         perfect,
-                        progress: 100
-                    })
-                    .eq('challenge_id', challengeId);
+                        progress: 100,
+                        updatedAt: serverTimestamp()
+                    });
 
-                if (error) throw error;
-
-                // Record the achievement
-                achievementStatsStore.recordActivity(
-                    'challenge',
-                    undefined,
-                    `Completed challenge${perfect ? ' perfectly' : ''}!`
-                );
-
-                await this.loadChallenges();
+                    await this.loadChallenges();
+                }
             } catch (error) {
                 console.error('Error completing challenge:', error);
             }
@@ -221,21 +254,29 @@ function createChallengeStore() {
 
         async claimRewards(challengeId: string) {
             try {
-                const { error } = await supabase
-                    .rpc('claim_challenge_rewards', {
-                        challenge_id: challengeId
+                const userChallengesRef = collection(db, 'player_challenges');
+                const userChallengeQuery = query(userChallengesRef,
+                    where('userId', '==', auth.currentUser.uid),
+                    where('challengeId', '==', challengeId)
+                );
+                const userChallengeSnapshot = await getDocs(userChallengeQuery);
+
+                if (!userChallengeSnapshot.empty) {
+                    const userChallenge = userChallengeSnapshot.docs[0];
+                    await updateDoc(userChallenge.ref, {
+                        rewards_claimed: true,
+                        updatedAt: serverTimestamp()
                     });
 
-                if (error) throw error;
-
-                update(store => ({
-                    ...store,
-                    playerChallenges: store.playerChallenges.map(pc =>
-                        pc.challenge_id === challengeId
-                            ? { ...pc, rewards_claimed: true }
-                            : pc
-                    )
-                }));
+                    update(store => ({
+                        ...store,
+                        playerChallenges: store.playerChallenges.map(pc =>
+                            pc.challenge_id === challengeId
+                                ? { ...pc, rewards_claimed: true }
+                                : pc
+                        )
+                    }));
+                }
             } catch (error) {
                 console.error('Error claiming rewards:', error);
             }

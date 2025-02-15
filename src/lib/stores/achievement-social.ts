@@ -1,17 +1,18 @@
 import { writable } from 'svelte/store';
-import { supabase } from '$lib/supabase';
 import type { Achievement } from '$lib/types';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 
-export interface AchievementShare {
+interface AchievementShare {
     id: string;
-    user_id: string;
-    achievement_id: string;
+    userId: string;
+    achievementId: string;
     message: string;
     likes: number;
-    created_at: string;
+    timestamp: any;
     profiles: {
         username: string;
-        avatar_url: string;
+        avatarUrl: string;
     };
     achievements: Achievement;
 }
@@ -39,32 +40,24 @@ function createAchievementSocialStore() {
             update(store => ({ ...store, loading: true }));
 
             try {
-                const { data: shares, error: sharesError } = await supabase
-                    .from('achievement_shares')
-                    .select(`
-                        *,
-                        profiles:user_id (
-                            username,
-                            avatar_url
-                        ),
-                        achievements:achievement_id (*)
-                    `)
-                    .order('created_at', { ascending: false })
-                    .limit(50);
-
-                if (sharesError) throw sharesError;
+                const sharesRef = collection(db, 'achievement_shares');
+                const sharesQuery = query(sharesRef, orderBy('timestamp', 'desc'), limit(50));
+                const sharesSnapshot = await getDocs(sharesQuery);
+                const shares = sharesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as AchievementShare[];
 
                 // Load user's likes
-                const { data: likes, error: likesError } = await supabase
-                    .from('achievement_share_likes')
-                    .select('share_id');
-
-                if (likesError) throw likesError;
+                const likesRef = collection(db, 'achievement_share_likes');
+                const likesQuery = query(likesRef, where('userId', '==', auth.currentUser?.uid));
+                const likesSnapshot = await getDocs(likesQuery);
+                const likes = likesSnapshot.docs.map(doc => doc.data().shareId);
 
                 update(store => ({
                     ...store,
-                    shares: shares || [],
-                    userLikes: new Set((likes || []).map(l => l.share_id)),
+                    shares,
+                    userLikes: new Set(likes),
                     loading: false,
                     error: null
                 }));
@@ -80,27 +73,17 @@ function createAchievementSocialStore() {
         // Share an achievement
         async shareAchievement(achievement: Achievement, message: string) {
             try {
-                const { data: share, error } = await supabase
-                    .from('achievement_shares')
-                    .insert({
-                        achievement_id: achievement.id,
-                        message
-                    })
-                    .select(`
-                        *,
-                        profiles:user_id (
-                            username,
-                            avatar_url
-                        ),
-                        achievements:achievement_id (*)
-                    `)
-                    .single();
-
-                if (error) throw error;
+                const sharesRef = collection(db, 'achievement_shares');
+                const share = await addDoc(sharesRef, {
+                    userId: auth.currentUser?.uid,
+                    achievementId: achievement.id,
+                    message,
+                    timestamp: serverTimestamp()
+                });
 
                 update(store => ({
                     ...store,
-                    shares: [share, ...store.shares]
+                    shares: [{ id: share.id, ...share.data() }, ...store.shares]
                 }));
 
                 return true;
@@ -135,14 +118,41 @@ function createAchievementSocialStore() {
 
             try {
                 if (this.userLikes.has(shareId)) {
-                    await supabase
-                        .from('achievement_share_likes')
-                        .delete()
-                        .eq('share_id', shareId);
+                    const likesRef = collection(db, 'achievement_share_likes');
+                    const likeQuery = query(likesRef, where('shareId', '==', shareId), where('userId', '==', auth.currentUser?.uid));
+                    const likeSnapshot = await getDocs(likeQuery);
+
+                    if (!likeSnapshot.empty) {
+                        await updateDoc(likeSnapshot.docs[0].ref, {
+                            userId: auth.currentUser?.uid,
+                            shareId: shareId,
+                            timestamp: serverTimestamp()
+                        });
+                    } else {
+                        await addDoc(likesRef, {
+                            userId: auth.currentUser?.uid,
+                            shareId: shareId,
+                            timestamp: serverTimestamp()
+                        });
+                    }
                 } else {
-                    await supabase
-                        .from('achievement_share_likes')
-                        .insert({ share_id: shareId });
+                    const likesRef = collection(db, 'achievement_share_likes');
+                    const likeQuery = query(likesRef, where('shareId', '==', shareId), where('userId', '==', auth.currentUser?.uid));
+                    const likeSnapshot = await getDocs(likeQuery);
+
+                    if (!likeSnapshot.empty) {
+                        await updateDoc(likeSnapshot.docs[0].ref, {
+                            userId: auth.currentUser?.uid,
+                            shareId: shareId,
+                            timestamp: serverTimestamp()
+                        });
+                    } else {
+                        await addDoc(likesRef, {
+                            userId: auth.currentUser?.uid,
+                            shareId: shareId,
+                            timestamp: serverTimestamp()
+                        });
+                    }
                 }
             } catch (error) {
                 // Revert on error
@@ -173,12 +183,11 @@ function createAchievementSocialStore() {
         // Delete a share
         async deleteShare(shareId: string) {
             try {
-                const { error } = await supabase
-                    .from('achievement_shares')
-                    .delete()
-                    .eq('id', shareId);
-
-                if (error) throw error;
+                const sharesRef = collection(db, 'achievement_shares');
+                await updateDoc(sharesRef.doc(shareId), {
+                    deleted: true,
+                    timestamp: serverTimestamp()
+                });
 
                 update(store => ({
                     ...store,
@@ -193,8 +202,8 @@ function createAchievementSocialStore() {
         },
 
         // Format relative time
-        formatRelativeTime(date: string) {
-            const diff = Date.now() - new Date(date).getTime();
+        formatRelativeTime(date: any) {
+            const diff = Date.now() - date.toDate().getTime();
             const minutes = Math.floor(diff / 60000);
             const hours = Math.floor(minutes / 60);
             const days = Math.floor(hours / 24);

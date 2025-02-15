@@ -1,8 +1,7 @@
 import { writable } from 'svelte/store';
-import { supabase } from '$lib/supabase';
-import type { Achievement } from '$lib/types';
-import { achievementStore } from './achievements';
-import { achievementStatsStore } from './achievement-stats';
+import type { ShopItem, UserInventory } from '$lib/types';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp, doc, getDoc, increment } from 'firebase/firestore';
 
 interface ShopItem {
     id: string;
@@ -10,7 +9,7 @@ interface ShopItem {
     description: string;
     type: 'multiplier' | 'points' | 'badge' | 'title' | 'theme' | 'effect';
     value: number | string;
-    cost: number;
+    price: number;
     rarity: 'common' | 'rare' | 'epic' | 'legendary';
     requirements: {
         achievements?: string[];
@@ -26,30 +25,14 @@ interface ShopItem {
     stock?: number;
 }
 
-interface PlayerInventory {
-    points: number;
-    multiplier: number;
-    badges: string[];
-    titles: string[];
-    themes: string[];
-    effects: string[];
-    equipped: {
-        badge?: string;
-        title?: string;
-        theme?: string;
-        effect?: string;
-    };
+interface UserInventory {
+    currency: number;
+    items: { [key: string]: number };
 }
 
 interface ShopStore {
     items: ShopItem[];
-    featured: ShopItem[];
-    inventory: PlayerInventory;
-    purchaseHistory: {
-        item_id: string;
-        purchase_time: string;
-        cost: number;
-    }[];
+    inventory: UserInventory;
     loading: boolean;
     error: string | null;
 }
@@ -57,237 +40,206 @@ interface ShopStore {
 function createShopStore() {
     const { subscribe, set, update } = writable<ShopStore>({
         items: [],
-        featured: [],
         inventory: {
-            points: 0,
-            multiplier: 1,
-            badges: [],
-            titles: [],
-            themes: [],
-            effects: [],
-            equipped: {}
+            currency: 0,
+            items: {}
         },
-        purchaseHistory: [],
         loading: false,
         error: null
     });
 
     return {
         subscribe,
-        set,
-        update,
 
-        async loadShop() {
-            update(store => ({ ...store, loading: true, error: null }));
+        // Load shop data
+        loadShopData: async () => {
+            const user = auth.currentUser;
+            if (!user) return;
 
             try {
+                update(state => ({ ...state, loading: true, error: null }));
+
                 // Load shop items
-                const { data: items, error: itemsError } = await supabase
-                    .from('achievement_shop')
-                    .select('*')
-                    .or('limited_time.is.null,end_time.gt.now()');
+                const shopItemsRef = collection(db, 'shop_items');
+                const shopItemsSnapshot = await getDocs(shopItemsRef);
+                const items = shopItemsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as ShopItem[];
 
-                if (itemsError) throw itemsError;
+                // Load user inventory
+                const userInventoryRef = doc(db, 'user_inventory', user.uid);
+                const userInventorySnapshot = await getDoc(userInventoryRef);
+                let inventory: UserInventory;
 
-                // Load featured items
-                const { data: featured, error: featuredError } = await supabase
-                    .from('achievement_shop')
-                    .select('*')
-                    .eq('featured', true)
-                    .or('limited_time.is.null,end_time.gt.now()');
+                if (userInventorySnapshot.exists()) {
+                    inventory = {
+                        id: userInventorySnapshot.id,
+                        ...userInventorySnapshot.data()
+                    } as UserInventory;
+                } else {
+                    // Initialize inventory if it doesn't exist
+                    await setDoc(userInventoryRef, {
+                        userId: user.uid,
+                        currency: 0,
+                        items: {},
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                    inventory = {
+                        currency: 0,
+                        items: {}
+                    };
+                }
 
-                if (featuredError) throw featuredError;
-
-                // Load player inventory
-                const { data: inventory, error: inventoryError } = await supabase
-                    .from('player_inventory')
-                    .select('*')
-                    .single();
-
-                if (inventoryError) throw inventoryError;
-
-                // Load purchase history
-                const { data: history, error: historyError } = await supabase
-                    .from('purchase_history')
-                    .select('*')
-                    .order('purchase_time', { ascending: false });
-
-                if (historyError) throw historyError;
-
-                update(store => ({
-                    ...store,
+                update(state => ({
+                    ...state,
                     items,
-                    featured,
                     inventory,
-                    purchaseHistory: history,
                     loading: false
                 }));
             } catch (error) {
-                console.error('Error loading shop:', error);
-                update(store => ({
-                    ...store,
+                console.error('Error loading shop data:', error);
+                update(state => ({
+                    ...state,
                     loading: false,
-                    error: error.message
+                    error: 'Failed to load shop data'
                 }));
             }
         },
 
-        async purchaseItem(itemId: string) {
+        // Purchase item
+        purchaseItem: async (itemId: string, quantity: number = 1) => {
+            const user = auth.currentUser;
+            if (!user) return;
+
             try {
-                const { error } = await supabase
-                    .rpc('purchase_shop_item', {
-                        item_id: itemId
-                    });
+                update(state => ({ ...state, loading: true, error: null }));
 
-                if (error) throw error;
+                // Get item details
+                const itemRef = doc(db, 'shop_items', itemId);
+                const itemSnapshot = await getDoc(itemRef);
+                
+                if (!itemSnapshot.exists()) {
+                    throw new Error('Item not found');
+                }
 
-                await this.loadShop();
+                const item = {
+                    id: itemSnapshot.id,
+                    ...itemSnapshot.data()
+                } as ShopItem;
+
+                // Check if user has enough currency
+                const totalCost = item.price * quantity;
+                const userInventoryRef = doc(db, 'user_inventory', user.uid);
+                const userInventorySnapshot = await getDoc(userInventoryRef);
+
+                if (!userInventorySnapshot.exists() || userInventorySnapshot.data().currency < totalCost) {
+                    throw new Error('Insufficient funds');
+                }
+
+                // Update inventory
+                await updateDoc(userInventoryRef, {
+                    currency: increment(-totalCost),
+                    [`items.${itemId}`]: increment(quantity),
+                    updatedAt: serverTimestamp()
+                });
+
+                // Record transaction
+                const transactionRef = collection(db, 'shop_transactions');
+                await addDoc(transactionRef, {
+                    userId: user.uid,
+                    itemId,
+                    quantity,
+                    totalCost,
+                    timestamp: serverTimestamp()
+                });
+
+                await shopStore.loadShopData();
             } catch (error) {
                 console.error('Error purchasing item:', error);
-                throw error;
-            }
-        },
-
-        async equipItem(type: 'badge' | 'title' | 'theme' | 'effect', itemId: string) {
-            try {
-                const { error } = await supabase
-                    .from('player_inventory')
-                    .update({
-                        [`equipped_${type}`]: itemId
-                    });
-
-                if (error) throw error;
-
-                update(store => ({
-                    ...store,
-                    inventory: {
-                        ...store.inventory,
-                        equipped: {
-                            ...store.inventory.equipped,
-                            [type]: itemId
-                        }
-                    }
+                update(state => ({
+                    ...state,
+                    loading: false,
+                    error: error.message || 'Failed to purchase item'
                 }));
-            } catch (error) {
-                console.error('Error equipping item:', error);
             }
         },
 
-        async unequipItem(type: 'badge' | 'title' | 'theme' | 'effect') {
+        // Add currency
+        addCurrency: async (amount: number) => {
+            const user = auth.currentUser;
+            if (!user) return;
+
             try {
-                const { error } = await supabase
-                    .from('player_inventory')
-                    .update({
-                        [`equipped_${type}`]: null
-                    });
+                update(state => ({ ...state, loading: true, error: null }));
 
-                if (error) throw error;
+                const userInventoryRef = doc(db, 'user_inventory', user.uid);
+                await updateDoc(userInventoryRef, {
+                    currency: increment(amount),
+                    updatedAt: serverTimestamp()
+                });
 
-                update(store => ({
-                    ...store,
-                    inventory: {
-                        ...store.inventory,
-                        equipped: {
-                            ...store.inventory.equipped,
-                            [type]: undefined
-                        }
-                    }
-                }));
+                // Record currency addition
+                const currencyLogRef = collection(db, 'currency_log');
+                await addDoc(currencyLogRef, {
+                    userId: user.uid,
+                    amount,
+                    type: 'add',
+                    timestamp: serverTimestamp()
+                });
+
+                await shopStore.loadShopData();
             } catch (error) {
-                console.error('Error unequipping item:', error);
+                console.error('Error adding currency:', error);
+                update(state => ({
+                    ...state,
+                    loading: false,
+                    error: 'Failed to add currency'
+                }));
             }
         },
 
-        async addPoints(points: number) {
+        // Use item
+        useItem: async (itemId: string) => {
+            const user = auth.currentUser;
+            if (!user) return;
+
             try {
-                const { error } = await supabase
-                    .rpc('add_achievement_points', {
-                        points_to_add: points
-                    });
+                update(state => ({ ...state, loading: true, error: null }));
 
-                if (error) throw error;
+                const userInventoryRef = doc(db, 'user_inventory', user.uid);
+                const userInventorySnapshot = await getDoc(userInventoryRef);
 
-                update(store => ({
-                    ...store,
-                    inventory: {
-                        ...store.inventory,
-                        points: store.inventory.points + points
-                    }
-                }));
-            } catch (error) {
-                console.error('Error adding points:', error);
-            }
-        },
-
-        getItem(itemId: string) {
-            return this.items.find(item => item.id === itemId);
-        },
-
-        canPurchase(item: ShopItem) {
-            if (this.inventory.points < item.cost) return false;
-            if (item.stock !== undefined && item.stock <= 0) return false;
-            if (item.limited_time && new Date(item.end_time) < new Date()) return false;
-
-            // Check requirements
-            if (item.requirements) {
-                if (item.requirements.level && achievementStore.getLevel() < item.requirements.level) {
-                    return false;
+                if (!userInventorySnapshot.exists() || 
+                    !userInventorySnapshot.data().items[itemId] ||
+                    userInventorySnapshot.data().items[itemId] <= 0) {
+                    throw new Error('Item not available in inventory');
                 }
 
-                if (item.requirements.achievements) {
-                    const unlockedAchievements = achievementStore.getUnlockedAchievements();
-                    if (!item.requirements.achievements.every(id => 
-                        unlockedAchievements.some(ua => ua.id === id)
-                    )) {
-                        return false;
-                    }
-                }
+                // Update inventory
+                await updateDoc(userInventoryRef, {
+                    [`items.${itemId}`]: increment(-1),
+                    updatedAt: serverTimestamp()
+                });
 
-                if (item.requirements.stats) {
-                    const playerStats = achievementStatsStore.playerStats;
-                    if (!item.requirements.stats.every(stat => {
-                        // Check various stat requirements
-                        switch (stat.type) {
-                            case 'total_unlocked':
-                                return playerStats.totalUnlocked >= stat.value;
-                            case 'completion_rate':
-                                return playerStats.completionRate >= stat.value;
-                            case 'best_streak':
-                                return playerStats.bestStreak >= stat.value;
-                            default:
-                                return true;
-                        }
-                    })) {
-                        return false;
-                    }
-                }
+                // Record item usage
+                const itemUsageRef = collection(db, 'item_usage');
+                await addDoc(itemUsageRef, {
+                    userId: user.uid,
+                    itemId,
+                    timestamp: serverTimestamp()
+                });
+
+                await shopStore.loadShopData();
+            } catch (error) {
+                console.error('Error using item:', error);
+                update(state => ({
+                    ...state,
+                    loading: false,
+                    error: error.message || 'Failed to use item'
+                }));
             }
-
-            return true;
-        },
-
-        hasItem(itemId: string) {
-            const item = this.getItem(itemId);
-            if (!item) return false;
-
-            switch (item.type) {
-                case 'badge':
-                    return this.inventory.badges.includes(itemId);
-                case 'title':
-                    return this.inventory.titles.includes(itemId);
-                case 'theme':
-                    return this.inventory.themes.includes(itemId);
-                case 'effect':
-                    return this.inventory.effects.includes(itemId);
-                default:
-                    return false;
-            }
-        },
-
-        isEquipped(itemId: string) {
-            const item = this.getItem(itemId);
-            if (!item) return false;
-            return this.inventory.equipped[item.type] === itemId;
         }
     };
 }

@@ -1,9 +1,7 @@
 import { writable } from 'svelte/store';
-import { supabase } from '$lib/supabase';
-import type { Achievement } from '$lib/types';
-import { achievementStore } from './achievements';
-import { achievementStatsStore } from './achievement-stats';
-import { shopStore } from './achievement-shop';
+import type { Achievement, AchievementCollection } from '$lib/types';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 
 interface AchievementSet {
     id: string;
@@ -70,10 +68,17 @@ interface SetProgress {
 }
 
 interface CollectionStore {
-    collections: Collection[];
+    collections: AchievementCollection[];
     sets: AchievementSet[];
     collectionProgress: CollectionProgress[];
     setProgress: SetProgress[];
+    userCollections: {
+        [collectionId: string]: {
+            progress: number;
+            completed: boolean;
+            completedAt: Date | null;
+        };
+    };
     activeCollection?: string;
     loading: boolean;
     error: string | null;
@@ -85,6 +90,7 @@ function createCollectionStore() {
         sets: [],
         collectionProgress: [],
         setProgress: [],
+        userCollections: {},
         loading: false,
         error: null
     });
@@ -95,49 +101,74 @@ function createCollectionStore() {
         update,
 
         async loadCollections() {
-            update(store => ({ ...store, loading: true, error: null }));
+            const user = auth.currentUser;
+            if (!user) return;
 
             try {
-                // Load collections
-                const { data: collections, error: collectionsError } = await supabase
-                    .from('achievement_collections')
-                    .select('*')
-                    .or('limited_time.is.null,end_time.gt.now()');
+                update(store => ({ ...store, loading: true, error: null }));
 
-                if (collectionsError) throw collectionsError;
+                // Load all collections
+                const collectionsRef = collection(db, 'achievement_collections');
+                const collectionsQuery = query(collectionsRef, orderBy('order'));
+                const collectionsSnapshot = await getDocs(collectionsQuery);
+                const collections = collectionsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as AchievementCollection[];
 
                 // Load sets
-                const { data: sets, error: setsError } = await supabase
-                    .from('achievement_sets')
-                    .select('*');
+                const setsRef = collection(db, 'achievement_sets');
+                const setsQuery = query(setsRef);
+                const setsSnapshot = await getDocs(setsQuery);
+                const sets = setsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as AchievementSet[];
 
-                if (setsError) throw setsError;
+                // Load user's collection progress
+                const userCollectionsRef = collection(db, 'user_collections');
+                const userCollectionsQuery = query(userCollectionsRef, where('userId', '==', user.uid));
+                const userCollectionsSnapshot = await getDocs(userCollectionsQuery);
+                const userCollections = userCollectionsSnapshot.docs.reduce((acc, doc) => {
+                    const data = doc.data();
+                    acc[data.collectionId] = {
+                        progress: data.progress,
+                        completed: data.completed,
+                        completedAt: data.completedAt?.toDate() || null
+                    };
+                    return acc;
+                }, {});
 
                 // Load progress
-                const { data: collectionProgress, error: collectionError } = await supabase
-                    .from('collection_progress')
-                    .select('*');
+                const collectionProgressRef = collection(db, 'collection_progress');
+                const collectionProgressQuery = query(collectionProgressRef);
+                const collectionProgressSnapshot = await getDocs(collectionProgressQuery);
+                const collectionProgress = collectionProgressSnapshot.docs.map(doc => ({
+                    collection_id: doc.id,
+                    ...doc.data()
+                })) as CollectionProgress[];
 
-                if (collectionError) throw collectionError;
+                const setProgressRef = collection(db, 'set_progress');
+                const setProgressQuery = query(setProgressRef);
+                const setProgressSnapshot = await getDocs(setProgressQuery);
+                const setProgress = setProgressSnapshot.docs.map(doc => ({
+                    set_id: doc.id,
+                    ...doc.data()
+                })) as SetProgress[];
 
-                const { data: setProgress, error: setError } = await supabase
-                    .from('set_progress')
-                    .select('*');
-
-                if (setError) throw setError;
-
-                update(store => ({
-                    ...store,
+                update(state => ({
+                    ...state,
                     collections,
                     sets,
                     collectionProgress,
                     setProgress,
+                    userCollections,
                     loading: false
                 }));
             } catch (error) {
                 console.error('Error loading collections:', error);
-                update(store => ({
-                    ...store,
+                update(state => ({
+                    ...state,
                     loading: false,
                     error: error.message
                 }));
@@ -201,10 +232,24 @@ function createCollectionStore() {
 
         async claimSetRewards(setId: string) {
             try {
-                const { error } = await supabase
-                    .rpc('claim_set_rewards', {
-                        set_id: setId
-                    });
+                const { error } = await db.runTransaction(async transaction => {
+                    const setRef = doc(db, 'achievement_sets', setId);
+                    const setDoc = await transaction.get(setRef);
+                    if (!setDoc.exists()) throw new Error('Set not found');
+
+                    const rewards = setDoc.data().rewards;
+                    for (const reward of rewards) {
+                        if (reward.type === 'points') {
+                            await transaction.update(doc(db, 'users', auth.currentUser.uid), {
+                                points: increment(reward.value)
+                            });
+                        } else if (reward.type === 'badge') {
+                            await transaction.set(doc(db, 'user_badges', auth.currentUser.uid, reward.value), {
+                                timestamp: serverTimestamp()
+                            });
+                        }
+                    }
+                });
 
                 if (error) throw error;
 
@@ -223,11 +268,24 @@ function createCollectionStore() {
 
         async claimCollectionRewards(collectionId: string, perfect: boolean) {
             try {
-                const { error } = await supabase
-                    .rpc('claim_collection_rewards', {
-                        collection_id: collectionId,
-                        perfect
-                    });
+                const { error } = await db.runTransaction(async transaction => {
+                    const collectionRef = doc(db, 'achievement_collections', collectionId);
+                    const collectionDoc = await transaction.get(collectionRef);
+                    if (!collectionDoc.exists()) throw new Error('Collection not found');
+
+                    const rewards = collectionDoc.data().rewards;
+                    for (const reward of rewards) {
+                        if (reward.type === 'points') {
+                            await transaction.update(doc(db, 'users', auth.currentUser.uid), {
+                                points: increment(reward.value)
+                            });
+                        } else if (reward.type === 'badge') {
+                            await transaction.set(doc(db, 'user_badges', auth.currentUser.uid, reward.value), {
+                                timestamp: serverTimestamp()
+                            });
+                        }
+                    }
+                });
 
                 if (error) throw error;
 
@@ -241,6 +299,76 @@ function createCollectionStore() {
                 await this.loadCollections();
             } catch (error) {
                 console.error('Error claiming collection rewards:', error);
+            }
+        },
+
+        async updateProgress(collectionId: string, achievements: Achievement[]) {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            try {
+                update(state => ({ ...state, loading: true, error: null }));
+
+                // Get collection details
+                const collectionsRef = collection(db, 'achievement_collections');
+                const collectionSnapshot = await getDocs(query(collectionsRef, where('id', '==', collectionId)));
+                const collectionData = collectionSnapshot.docs[0].data() as AchievementCollection;
+
+                // Calculate progress
+                const requiredAchievements = collectionData.achievements;
+                const completedAchievements = achievements.filter(a => 
+                    requiredAchievements.includes(a.id)
+                );
+                const progress = (completedAchievements.length / requiredAchievements.length) * 100;
+                const completed = progress === 100;
+
+                // Update user collection progress
+                const userCollectionsRef = collection(db, 'user_collections');
+                const userCollectionQuery = query(userCollectionsRef,
+                    where('userId', '==', user.uid),
+                    where('collectionId', '==', collectionId)
+                );
+                const userCollectionSnapshot = await getDocs(userCollectionQuery);
+
+                if (userCollectionSnapshot.empty) {
+                    await addDoc(userCollectionsRef, {
+                        userId: user.uid,
+                        collectionId,
+                        progress,
+                        completed,
+                        completedAt: completed ? serverTimestamp() : null,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                } else {
+                    const userCollection = userCollectionSnapshot.docs[0];
+                    await updateDoc(userCollection.ref, {
+                        progress,
+                        completed,
+                        completedAt: completed ? serverTimestamp() : null,
+                        updatedAt: serverTimestamp()
+                    });
+                }
+
+                // If completed, record achievement
+                if (completed && !userCollectionSnapshot.docs[0]?.data()?.completed) {
+                    const activityRef = collection(db, 'achievement_activity');
+                    await addDoc(activityRef, {
+                        userId: user.uid,
+                        type: 'collection',
+                        collectionId,
+                        timestamp: serverTimestamp()
+                    });
+                }
+
+                await collectionStore.loadCollections();
+            } catch (error) {
+                console.error('Error updating collection progress:', error);
+                update(state => ({
+                    ...state,
+                    loading: false,
+                    error: 'Failed to update collection progress'
+                }));
             }
         },
 
@@ -308,6 +436,20 @@ function createCollectionStore() {
                 }
                 return acc;
             }, [] as typeof collection.rewards);
+        },
+
+        getProgress: (collectionId: string) => {
+            const store = get(collectionStore);
+            return store.userCollections[collectionId] || {
+                progress: 0,
+                completed: false,
+                completedAt: null
+            };
+        },
+
+        isCompleted: (collectionId: string) => {
+            const store = get(collectionStore);
+            return store.userCollections[collectionId]?.completed || false;
         }
     };
 }

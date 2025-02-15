@@ -1,229 +1,131 @@
 import { writable } from 'svelte/store';
-import { supabase } from '$lib/supabase';
 import type { Achievement } from '$lib/types';
-import { achievementStore } from './achievements';
-import { achievementStatsStore } from './achievement-stats';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 interface ComboState {
-    active: boolean;
-    multiplier: number;
-    achievements: Achievement[];
-    timeRemaining: number;
-    maxMultiplier: number;
-    currentStreak: number;
-    bestStreak: number;
-    comboEffects: string[];
-    recentCombos: {
-        achievements: Achievement[];
-        multiplier: number;
-        time: string;
-    }[];
-}
-
-interface AchievementComboStore {
-    combo: ComboState;
+    currentCombo: number;
+    maxCombo: number;
+    lastAchievementTime: number | null;
+    comboMultiplier: number;
     loading: boolean;
     error: string | null;
 }
 
-const COMBO_DURATION = 10000; // 10 seconds
-const BASE_MULTIPLIER = 1;
-const COMBO_MULTIPLIERS = [
-    { streak: 2, multiplier: 1.2 },
-    { streak: 3, multiplier: 1.5 },
-    { streak: 4, multiplier: 2.0 },
-    { streak: 5, multiplier: 3.0 },
-    { streak: 7, multiplier: 5.0 },
-    { streak: 10, multiplier: 7.0 }
-];
-
-const COMBO_EFFECTS = [
-    { streak: 3, effect: 'sparkles' },
-    { streak: 5, effect: 'rainbow' },
-    { streak: 7, effect: 'fireworks' },
-    { streak: 10, effect: 'cosmic' }
-];
-
-function createAchievementComboStore() {
-    let comboTimer: number | null = null;
-
-    const { subscribe, set, update } = writable<AchievementComboStore>({
-        combo: {
-            active: false,
-            multiplier: BASE_MULTIPLIER,
-            achievements: [],
-            timeRemaining: 0,
-            maxMultiplier: BASE_MULTIPLIER,
-            currentStreak: 0,
-            bestStreak: 0,
-            comboEffects: [],
-            recentCombos: []
-        },
+function createComboStore() {
+    const { subscribe, set, update } = writable<ComboState>({
+        currentCombo: 0,
+        maxCombo: 0,
+        lastAchievementTime: null,
+        comboMultiplier: 1,
         loading: false,
         error: null
     });
 
-    function clearComboTimer() {
-        if (comboTimer) {
-            clearInterval(comboTimer);
-            comboTimer = null;
-        }
-    }
-
     return {
         subscribe,
-        set,
-        update,
-
-        async startCombo(achievement: Achievement) {
-            clearComboTimer();
-
-            update(store => ({
-                ...store,
-                combo: {
-                    ...store.combo,
-                    active: true,
-                    achievements: [achievement],
-                    timeRemaining: COMBO_DURATION,
-                    currentStreak: 1,
-                    multiplier: BASE_MULTIPLIER,
-                    comboEffects: []
-                }
+        
+        // Reset combo
+        resetCombo: () => {
+            update(state => ({
+                ...state,
+                currentCombo: 0,
+                comboMultiplier: 1,
+                lastAchievementTime: null
             }));
-
-            // Start combo timer
-            let timeLeft = COMBO_DURATION;
-            comboTimer = setInterval(() => {
-                timeLeft -= 100;
-
-                if (timeLeft <= 0) {
-                    this.endCombo();
-                } else {
-                    update(store => ({
-                        ...store,
-                        combo: {
-                            ...store.combo,
-                            timeRemaining: timeLeft
-                        }
-                    }));
-                }
-            }, 100);
         },
 
-        async addToCombo(achievement: Achievement) {
-            update(store => {
-                const newStreak = store.combo.currentStreak + 1;
-                const multiplierInfo = COMBO_MULTIPLIERS
-                    .slice()
-                    .reverse()
-                    .find(m => newStreak >= m.streak);
+        // Add to combo
+        addToCombo: async (achievement: Achievement) => {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            try {
+                update(state => ({ ...state, loading: true, error: null }));
+
+                const now = Date.now();
+                const comboRef = collection(db, 'achievement_combos');
                 
-                const newMultiplier = multiplierInfo ? multiplierInfo.multiplier : BASE_MULTIPLIER;
-                const maxMultiplier = Math.max(store.combo.maxMultiplier, newMultiplier);
+                // Add the achievement to the combo
+                await addDoc(comboRef, {
+                    userId: user.uid,
+                    achievementId: achievement.id,
+                    timestamp: serverTimestamp(),
+                    comboCount: state.currentCombo + 1
+                });
 
-                // Get new effects
-                const newEffects = COMBO_EFFECTS
-                    .filter(e => e.streak === newStreak)
-                    .map(e => e.effect);
+                // Update user's max combo if needed
+                const userStatsRef = collection(db, 'user_stats');
+                const userStatsQuery = query(userStatsRef, where('userId', '==', user.uid));
+                const userStatsSnapshot = await getDocs(userStatsQuery);
 
-                return {
-                    ...store,
-                    combo: {
-                        ...store.combo,
-                        achievements: [...store.combo.achievements, achievement],
-                        currentStreak: newStreak,
-                        bestStreak: Math.max(store.combo.bestStreak, newStreak),
-                        multiplier: newMultiplier,
-                        maxMultiplier,
-                        timeRemaining: COMBO_DURATION,
-                        comboEffects: [...store.combo.comboEffects, ...newEffects]
+                if (!userStatsSnapshot.empty) {
+                    const userStats = userStatsSnapshot.docs[0];
+                    const currentMaxCombo = userStats.data().maxCombo || 0;
+                    if (state.currentCombo + 1 > currentMaxCombo) {
+                        await updateDoc(userStats.ref, {
+                            maxCombo: state.currentCombo + 1,
+                            updatedAt: serverTimestamp()
+                        });
                     }
-                };
-            });
-
-            // Reset combo timer
-            clearComboTimer();
-            let timeLeft = COMBO_DURATION;
-            comboTimer = setInterval(() => {
-                timeLeft -= 100;
-
-                if (timeLeft <= 0) {
-                    this.endCombo();
                 } else {
-                    update(store => ({
-                        ...store,
-                        combo: {
-                            ...store.combo,
-                            timeRemaining: timeLeft
-                        }
+                    // Create new user stats document
+                    await addDoc(userStatsRef, {
+                        userId: user.uid,
+                        maxCombo: state.currentCombo + 1,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                }
+
+                update(state => ({
+                    ...state,
+                    currentCombo: state.currentCombo + 1,
+                    maxCombo: Math.max(state.maxCombo, state.currentCombo + 1),
+                    lastAchievementTime: now,
+                    comboMultiplier: Math.min(5, 1 + state.currentCombo * 0.2), // Cap at 5x
+                    loading: false
+                }));
+            } catch (error) {
+                console.error('Error updating combo:', error);
+                update(state => ({
+                    ...state,
+                    loading: false,
+                    error: 'Failed to update combo'
+                }));
+            }
+        },
+
+        // Load combo stats
+        loadComboStats: async () => {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            try {
+                update(state => ({ ...state, loading: true, error: null }));
+
+                const userStatsRef = collection(db, 'user_stats');
+                const userStatsQuery = query(userStatsRef, where('userId', '==', user.uid));
+                const userStatsSnapshot = await getDocs(userStatsQuery);
+
+                if (!userStatsSnapshot.empty) {
+                    const userStats = userStatsSnapshot.docs[0].data();
+                    update(state => ({
+                        ...state,
+                        maxCombo: userStats.maxCombo || 0,
+                        loading: false
                     }));
                 }
-            }, 100);
-        },
-
-        async endCombo() {
-            clearComboTimer();
-
-            update(store => {
-                const combo = {
-                    achievements: store.combo.achievements,
-                    multiplier: store.combo.multiplier,
-                    time: new Date().toISOString()
-                };
-
-                // Record combo if it's significant
-                if (store.combo.currentStreak >= 3) {
-                    achievementStatsStore.recordActivity(
-                        'combo',
-                        undefined,
-                        `Achieved ${store.combo.currentStreak}x combo with ${store.combo.multiplier}x multiplier!`
-                    );
-                }
-
-                return {
-                    ...store,
-                    combo: {
-                        ...store.combo,
-                        active: false,
-                        achievements: [],
-                        timeRemaining: 0,
-                        multiplier: BASE_MULTIPLIER,
-                        currentStreak: 0,
-                        comboEffects: [],
-                        recentCombos: [combo, ...store.combo.recentCombos].slice(0, 10)
-                    }
-                };
-            });
-        },
-
-        getComboMultiplier() {
-            return this.combo.multiplier;
-        },
-
-        getTimeRemaining() {
-            return this.combo.timeRemaining;
-        },
-
-        getCurrentStreak() {
-            return this.combo.currentStreak;
-        },
-
-        getBestStreak() {
-            return this.combo.bestStreak;
-        },
-
-        getComboEffects() {
-            return this.combo.comboEffects;
-        },
-
-        getRecentCombos() {
-            return this.combo.recentCombos;
-        },
-
-        destroy() {
-            clearComboTimer();
+            } catch (error) {
+                console.error('Error loading combo stats:', error);
+                update(state => ({
+                    ...state,
+                    loading: false,
+                    error: 'Failed to load combo stats'
+                }));
+            }
         }
     };
 }
 
-export const achievementComboStore = createAchievementComboStore();
+export const comboStore = createComboStore();

@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
-import { supabase } from '$lib/supabase';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
 import type { Achievement } from '$lib/types';
 import { achievementStore } from './achievements';
 import { achievementStatsStore } from './achievement-stats';
@@ -147,50 +148,46 @@ function createProgressionStore() {
 
             try {
                 // Load skill trees
-                const { data: skillTrees, error: skillError } = await supabase
-                    .from('skill_trees')
-                    .select('*');
-
-                if (skillError) throw skillError;
+                const skillTreesRef = collection(db, 'skill_trees');
+                const skillTreesSnapshot = await getDocs(skillTreesRef);
+                const skillTrees = skillTreesSnapshot.docs.reduce((acc, doc) => {
+                    acc[doc.id] = doc.data();
+                    return acc;
+                }, {});
 
                 // Load prestige data
-                const { data: prestigeData, error: prestigeError } = await supabase
-                    .from('prestige_levels')
-                    .select('*');
-
-                if (prestigeError) throw prestigeError;
+                const prestigeRef = collection(db, 'prestige_levels');
+                const prestigeSnapshot = await getDocs(prestigeRef);
+                const prestigeData = prestigeSnapshot.docs.map(doc => doc.data());
 
                 // Load masteries
-                const { data: masteries, error: masteryError } = await supabase
-                    .from('masteries')
-                    .select('*');
-
-                if (masteryError) throw masteryError;
+                const masteriesRef = collection(db, 'masteries');
+                const masteriesSnapshot = await getDocs(masteriesRef);
+                const masteries = masteriesSnapshot.docs.map(doc => ({
+                    ...doc.data(),
+                    nextLevelExp: calculateExpForLevel(doc.data().level + 1)
+                }));
 
                 // Load player progression
-                const { data: progression, error: progressionError } = await supabase
-                    .from('player_progression')
-                    .select('*')
-                    .single();
+                const user = auth.currentUser;
+                if (!user) return;
 
-                if (progressionError) throw progressionError;
+                const userProgressionRef = doc(db, 'user_progression', user.uid);
+                const userProgressionSnapshot = await getDoc(userProgressionRef);
+                const userProgression = userProgressionSnapshot.exists() 
+                    ? { id: userProgressionSnapshot.id, ...userProgressionSnapshot.data() } 
+                    : null;
 
                 update(store => ({
                     ...store,
-                    skillTrees: skillTrees.reduce((acc, tree) => {
-                        acc[tree.id] = tree;
-                        return acc;
-                    }, {}),
+                    skillTrees,
                     prestige: {
                         ...store.prestige,
                         availableLevels: prestigeData,
-                        ...progression.prestige
+                        ...userProgression?.prestige
                     },
-                    masteries: masteries.map(mastery => ({
-                        ...mastery,
-                        nextLevelExp: calculateExpForLevel(mastery.level + 1)
-                    })),
-                    ...progression,
+                    masteries,
+                    ...userProgression,
                     loading: false
                 }));
             } catch (error) {
@@ -226,15 +223,16 @@ function createProgressionStore() {
             }
 
             try {
-                const { error } = await supabase
-                    .from('player_progression')
-                    .update({
-                        experience: exp,
-                        level,
-                        skill_points: skillPoints
-                    });
+                const user = auth.currentUser;
+                if (!user) return;
 
-                if (error) throw error;
+                const userProgressionRef = doc(db, 'user_progression', user.uid);
+                await updateDoc(userProgressionRef, {
+                    experience: exp,
+                    level,
+                    skillPoints,
+                    updatedAt: serverTimestamp()
+                });
 
                 update(store => ({
                     ...store,
@@ -255,30 +253,32 @@ function createProgressionStore() {
             if (!node || !this.canUnlockNode(treeId, nodeId)) return;
 
             try {
-                const { error } = await supabase
-                    .rpc('unlock_skill_node', {
-                        tree_id: treeId,
-                        node_id: nodeId
+                const user = auth.currentUser;
+                if (!user) return;
+
+                const userProgressionRef = doc(db, 'user_progression', user.uid);
+                const userProgressionSnapshot = await getDoc(userProgressionRef);
+
+                if (userProgressionSnapshot.exists()) {
+                    const currentSkills = userProgressionSnapshot.data().unlockedSkills || {};
+                    const treeSkills = currentSkills[treeId] || [];
+
+                    await updateDoc(userProgressionRef, {
+                        [`unlockedSkills.${treeId}`]: [...treeSkills, nodeId],
+                        updatedAt: serverTimestamp()
                     });
+                } else {
+                    await setDoc(userProgressionRef, {
+                        userId: user.uid,
+                        unlockedSkills: { [treeId]: [nodeId] },
+                        prestigeLevel: 0,
+                        masteryLevels: {},
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                }
 
-                if (error) throw error;
-
-                update(store => ({
-                    ...store,
-                    skillTrees: {
-                        ...store.skillTrees,
-                        [treeId]: {
-                            ...tree,
-                            unlockedNodes: [...tree.unlockedNodes, nodeId],
-                            nodes: tree.nodes.map(n =>
-                                n.id === nodeId
-                                    ? { ...n, currentRank: 1 }
-                                    : n
-                            )
-                        }
-                    },
-                    skillPoints: store.skillPoints - node.cost.base
-                }));
+                await this.loadProgression();
 
                 // Apply node effects
                 await this.applyNodeEffects(node);
@@ -301,29 +301,17 @@ function createProgressionStore() {
             if (store.skillPoints < cost) return;
 
             try {
-                const { error } = await supabase
-                    .rpc('upgrade_skill_node', {
-                        tree_id: treeId,
-                        node_id: nodeId
-                    });
+                const user = auth.currentUser;
+                if (!user) return;
 
-                if (error) throw error;
+                const userProgressionRef = doc(db, 'user_progression', user.uid);
+                await updateDoc(userProgressionRef, {
+                    [`unlockedSkills.${treeId}.${nodeId}`]: node.currentRank + 1,
+                    skillPoints: store.skillPoints - cost,
+                    updatedAt: serverTimestamp()
+                });
 
-                update(store => ({
-                    ...store,
-                    skillTrees: {
-                        ...store.skillTrees,
-                        [treeId]: {
-                            ...tree,
-                            nodes: tree.nodes.map(n =>
-                                n.id === nodeId
-                                    ? { ...n, currentRank: n.currentRank + 1 }
-                                    : n
-                            )
-                        }
-                    },
-                    skillPoints: store.skillPoints - cost
-                }));
+                await this.loadProgression();
 
                 // Apply upgraded effects
                 await this.applyNodeEffects(node, node.currentRank + 1);
@@ -340,12 +328,17 @@ function createProgressionStore() {
             if (!prestigeLevel || !this.canPrestige(nextLevel)) return;
 
             try {
-                const { error } = await supabase
-                    .rpc('perform_prestige', {
-                        prestige_level: nextLevel
-                    });
+                const user = auth.currentUser;
+                if (!user) return;
 
-                if (error) throw error;
+                const userProgressionRef = doc(db, 'user_progression', user.uid);
+                await updateDoc(userProgressionRef, {
+                    prestigeLevel: nextLevel,
+                    experience: 0,
+                    level: 1,
+                    skillPoints: prestigeLevel.rewards.find(r => r.type === 'skill_points')?.value || 0,
+                    updatedAt: serverTimestamp()
+                });
 
                 // Apply prestige rewards and reset progress
                 const newMultiplier = store.prestige.multiplier + calculatePrestigeBonus(nextLevel);
@@ -408,14 +401,15 @@ function createProgressionStore() {
             }
 
             try {
-                const { error } = await supabase
-                    .rpc('update_mastery', {
-                        mastery_id: mastery.id,
-                        new_level: level,
-                        new_exp: exp
-                    });
+                const user = auth.currentUser;
+                if (!user) return;
 
-                if (error) throw error;
+                const userProgressionRef = doc(db, 'user_progression', user.uid);
+                await updateDoc(userProgressionRef, {
+                    [`masteryLevels.${mastery.id}`]: level,
+                    masteryPoints,
+                    updatedAt: serverTimestamp()
+                });
 
                 update(store => ({
                     ...store,

@@ -1,390 +1,168 @@
 import { writable } from 'svelte/store';
-import { supabase } from '$lib/supabase';
-import type { Achievement } from '$lib/types';
-import { achievementStore } from './achievements';
-import { achievementStatsStore } from './achievement-stats';
-import { shopStore } from './achievement-shop';
-
-interface RewardTier {
-    id: string;
-    name: string;
-    color: string;
-    icon: string;
-    requirements: {
-        achievements?: number;
-        perfect_sets?: number;
-        challenges?: number;
-        competitions?: number;
-        points?: number;
-        multiplier?: number;
-    };
-    rewards: {
-        type: 'multiplier' | 'points' | 'badge' | 'title' | 'theme' | 'effect';
-        value: number | string;
-    }[];
-}
-
-interface Milestone {
-    id: string;
-    name: string;
-    description: string;
-    type: 'achievement' | 'collection' | 'challenge' | 'social';
-    target: number;
-    rewards: {
-        type: 'multiplier' | 'points' | 'badge' | 'title' | 'theme' | 'effect';
-        value: number | string;
-    }[];
-    repeatable: boolean;
-    completion_count: number;
-}
-
-interface DailyReward {
-    day: number;
-    claimed: boolean;
-    rewards: {
-        type: 'multiplier' | 'points' | 'badge' | 'title' | 'theme' | 'effect';
-        value: number | string;
-    }[];
-    bonus: boolean;
-}
+import type { Achievement, AchievementReward } from '$lib/types';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp, doc, getDoc, increment } from 'firebase/firestore';
 
 interface RewardStore {
-    tiers: RewardTier[];
-    currentTier: string;
-    nextTier: string;
-    milestones: Milestone[];
-    dailyRewards: DailyReward[];
-    currentStreak: number;
-    lastClaimDate: string;
+    rewards: AchievementReward[];
+    claimedRewards: string[];
     loading: boolean;
     error: string | null;
 }
 
 function createRewardStore() {
     const { subscribe, set, update } = writable<RewardStore>({
-        tiers: [],
-        currentTier: '',
-        nextTier: '',
-        milestones: [],
-        dailyRewards: [],
-        currentStreak: 0,
-        lastClaimDate: '',
+        rewards: [],
+        claimedRewards: [],
         loading: false,
         error: null
     });
 
     return {
         subscribe,
-        set,
-        update,
 
-        async loadRewards() {
-            update(store => ({ ...store, loading: true, error: null }));
+        // Load rewards
+        loadRewards: async () => {
+            const user = auth.currentUser;
+            if (!user) return;
 
             try {
-                // Load reward tiers
-                const { data: tiers, error: tiersError } = await supabase
-                    .from('achievement_tiers')
-                    .select('*')
-                    .order('requirements->achievements', { ascending: true });
+                update(state => ({ ...state, loading: true, error: null }));
 
-                if (tiersError) throw tiersError;
+                // Load all rewards
+                const rewardsRef = collection(db, 'achievement_rewards');
+                const rewardsSnapshot = await getDocs(rewardsRef);
+                const rewards = rewardsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as AchievementReward[];
 
-                // Load milestones
-                const { data: milestones, error: milestonesError } = await supabase
-                    .from('achievement_milestones')
-                    .select('*');
+                // Load claimed rewards
+                const claimedRewardsRef = collection(db, 'user_claimed_rewards');
+                const claimedRewardsQuery = query(claimedRewardsRef, where('userId', '==', user.uid));
+                const claimedRewardsSnapshot = await getDocs(claimedRewardsQuery);
+                const claimedRewards = claimedRewardsSnapshot.docs.map(doc => doc.data().rewardId);
 
-                if (milestonesError) throw milestonesError;
-
-                // Load daily rewards
-                const { data: dailyRewards, error: dailyError } = await supabase
-                    .from('daily_rewards')
-                    .select('*')
-                    .order('day', { ascending: true });
-
-                if (dailyError) throw dailyError;
-
-                // Calculate current tier
-                const stats = achievementStatsStore.playerStats;
-                let currentTier = tiers[0].id;
-                let nextTier = tiers[1]?.id;
-
-                for (let i = tiers.length - 1; i >= 0; i--) {
-                    const tier = tiers[i];
-                    if (this.meetsRequirements(tier.requirements)) {
-                        currentTier = tier.id;
-                        nextTier = tiers[i + 1]?.id;
-                        break;
-                    }
-                }
-
-                update(store => ({
-                    ...store,
-                    tiers,
-                    currentTier,
-                    nextTier,
-                    milestones,
-                    dailyRewards,
+                update(state => ({
+                    ...state,
+                    rewards,
+                    claimedRewards,
                     loading: false
                 }));
             } catch (error) {
                 console.error('Error loading rewards:', error);
-                update(store => ({
-                    ...store,
+                update(state => ({
+                    ...state,
                     loading: false,
-                    error: error.message
+                    error: 'Failed to load rewards'
                 }));
             }
         },
 
-        meetsRequirements(requirements: RewardTier['requirements']) {
-            const stats = achievementStatsStore.playerStats;
-            const inventory = shopStore.inventory;
+        // Claim reward
+        claimReward: async (achievement: Achievement) => {
+            const user = auth.currentUser;
+            if (!user) return;
 
-            return (
-                (!requirements.achievements || stats.totalUnlocked >= requirements.achievements) &&
-                (!requirements.perfect_sets || stats.perfectSets >= requirements.perfect_sets) &&
-                (!requirements.challenges || stats.completedChallenges >= requirements.challenges) &&
-                (!requirements.competitions || stats.completedCompetitions >= requirements.competitions) &&
-                (!requirements.points || inventory.points >= requirements.points) &&
-                (!requirements.multiplier || inventory.multiplier >= requirements.multiplier)
-            );
-        },
-
-        async claimDailyReward() {
-            const today = new Date().toISOString().split('T')[0];
-            
             try {
-                const { data, error } = await supabase
-                    .rpc('claim_daily_reward', {
-                        claim_date: today
-                    });
+                update(state => ({ ...state, loading: true, error: null }));
 
-                if (error) throw error;
+                // Get reward details
+                const rewardsRef = collection(db, 'achievement_rewards');
+                const rewardQuery = query(rewardsRef, where('achievementId', '==', achievement.id));
+                const rewardSnapshot = await getDocs(rewardQuery);
 
-                const {
-                    rewards,
-                    streak,
-                    bonus
-                } = data;
-
-                // Apply rewards
-                for (const reward of rewards) {
-                    switch (reward.type) {
-                        case 'points':
-                            await shopStore.addPoints(reward.value);
-                            break;
-                        case 'multiplier':
-                            // Apply temporary multiplier
-                            break;
-                        default:
-                            // Add item to inventory
-                            break;
-                    }
+                if (rewardSnapshot.empty) {
+                    throw new Error('No reward found for this achievement');
                 }
 
-                update(store => ({
-                    ...store,
-                    currentStreak: streak,
-                    lastClaimDate: today,
-                    dailyRewards: store.dailyRewards.map(dr =>
-                        dr.day === streak
-                            ? { ...dr, claimed: true, bonus }
-                            : dr
-                    )
-                }));
+                const reward = {
+                    id: rewardSnapshot.docs[0].id,
+                    ...rewardSnapshot.docs[0].data()
+                } as AchievementReward;
 
-                return { rewards, streak, bonus };
-            } catch (error) {
-                console.error('Error claiming daily reward:', error);
-                throw error;
-            }
-        },
+                // Check if already claimed
+                const claimedRewardsRef = collection(db, 'user_claimed_rewards');
+                const claimedQuery = query(claimedRewardsRef,
+                    where('userId', '==', user.uid),
+                    where('rewardId', '==', reward.id)
+                );
+                const claimedSnapshot = await getDocs(claimedQuery);
 
-        async checkMilestones() {
-            const stats = achievementStatsStore.playerStats;
-
-            try {
-                for (const milestone of this.milestones) {
-                    let progress = 0;
-
-                    switch (milestone.type) {
-                        case 'achievement':
-                            progress = stats.totalUnlocked;
-                            break;
-                        case 'collection':
-                            progress = stats.completedCollections;
-                            break;
-                        case 'challenge':
-                            progress = stats.completedChallenges;
-                            break;
-                        case 'social':
-                            progress = stats.socialActions;
-                            break;
-                    }
-
-                    if (progress >= milestone.target && 
-                        (milestone.repeatable || milestone.completion_count === 0)) {
-                        await this.claimMilestone(milestone.id);
-                    }
+                if (!claimedSnapshot.empty) {
+                    throw new Error('Reward already claimed');
                 }
-            } catch (error) {
-                console.error('Error checking milestones:', error);
-            }
-        },
 
-        async claimMilestone(milestoneId: string) {
-            try {
-                const { data, error } = await supabase
-                    .rpc('claim_milestone_reward', {
-                        milestone_id: milestoneId
-                    });
+                // Apply reward
+                const userRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userRef);
 
-                if (error) throw error;
+                if (!userDoc.exists()) {
+                    throw new Error('User not found');
+                }
 
-                update(store => ({
-                    ...store,
-                    milestones: store.milestones.map(m =>
-                        m.id === milestoneId
-                            ? { ...m, completion_count: m.completion_count + 1 }
-                            : m
-                    )
-                }));
-
-                return data.rewards;
-            } catch (error) {
-                console.error('Error claiming milestone:', error);
-                throw error;
-            }
-        },
-
-        async checkTierProgress() {
-            const currentTier = this.tiers.find(t => t.id === this.currentTier);
-            const nextTier = this.tiers.find(t => t.id === this.nextTier);
-
-            if (nextTier && this.meetsRequirements(nextTier.requirements)) {
-                try {
-                    const { data, error } = await supabase
-                        .rpc('upgrade_achievement_tier', {
-                            new_tier_id: nextTier.id
+                // Update user data based on reward type
+                switch (reward.type) {
+                    case 'points':
+                        await updateDoc(userRef, {
+                            points: increment(reward.value)
                         });
-
-                    if (error) throw error;
-
-                    update(store => ({
-                        ...store,
-                        currentTier: nextTier.id,
-                        nextTier: this.tiers[this.tiers.indexOf(nextTier) + 1]?.id
-                    }));
-
-                    return {
-                        oldTier: currentTier,
-                        newTier: nextTier,
-                        rewards: data.rewards
-                    };
-                } catch (error) {
-                    console.error('Error upgrading tier:', error);
+                        break;
+                    case 'multiplier':
+                        await updateDoc(userRef, {
+                            multiplier: increment(reward.value)
+                        });
+                        break;
+                    case 'currency':
+                        await updateDoc(userRef, {
+                            currency: increment(reward.value)
+                        });
+                        break;
+                    // Add more reward types as needed
                 }
-            }
 
-            return null;
+                // Record claimed reward
+                await addDoc(claimedRewardsRef, {
+                    userId: user.uid,
+                    rewardId: reward.id,
+                    achievementId: achievement.id,
+                    timestamp: serverTimestamp()
+                });
+
+                // Record activity
+                const activityRef = collection(db, 'achievement_activity');
+                await addDoc(activityRef, {
+                    userId: user.uid,
+                    type: 'reward_claim',
+                    achievementId: achievement.id,
+                    rewardId: reward.id,
+                    timestamp: serverTimestamp()
+                });
+
+                await rewardStore.loadRewards();
+            } catch (error) {
+                console.error('Error claiming reward:', error);
+                update(state => ({
+                    ...state,
+                    loading: false,
+                    error: error.message || 'Failed to claim reward'
+                }));
+            }
         },
 
-        getTier(tierId: string) {
-            return this.tiers.find(t => t.id === tierId);
+        // Check if reward is claimed
+        isRewardClaimed: (rewardId: string) => {
+            const store = get(rewardStore);
+            return store.claimedRewards.includes(rewardId);
         },
 
-        getMilestone(milestoneId: string) {
-            return this.milestones.find(m => m.id === milestoneId);
-        },
-
-        getDailyReward(day: number) {
-            return this.dailyRewards.find(dr => dr.day === day);
-        },
-
-        canClaimDaily() {
-            const today = new Date().toISOString().split('T')[0];
-            return today !== this.lastClaimDate;
-        },
-
-        getNextMilestone(type: Milestone['type']) {
-            const stats = achievementStatsStore.playerStats;
-            let progress = 0;
-
-            switch (type) {
-                case 'achievement':
-                    progress = stats.totalUnlocked;
-                    break;
-                case 'collection':
-                    progress = stats.completedCollections;
-                    break;
-                case 'challenge':
-                    progress = stats.completedChallenges;
-                    break;
-                case 'social':
-                    progress = stats.socialActions;
-                    break;
-            }
-
-            return this.milestones
-                .filter(m => m.type === type && 
-                    (m.repeatable || m.completion_count === 0) &&
-                    m.target > progress)
-                .sort((a, b) => a.target - b.target)[0];
-        },
-
-        getTierProgress(tierId: string) {
-            const tier = this.getTier(tierId);
-            if (!tier) return null;
-
-            const stats = achievementStatsStore.playerStats;
-            const inventory = shopStore.inventory;
-            const progress: Record<string, { current: number; required: number }> = {};
-
-            if (tier.requirements.achievements) {
-                progress.achievements = {
-                    current: stats.totalUnlocked,
-                    required: tier.requirements.achievements
-                };
-            }
-
-            if (tier.requirements.perfect_sets) {
-                progress.perfect_sets = {
-                    current: stats.perfectSets,
-                    required: tier.requirements.perfect_sets
-                };
-            }
-
-            if (tier.requirements.challenges) {
-                progress.challenges = {
-                    current: stats.completedChallenges,
-                    required: tier.requirements.challenges
-                };
-            }
-
-            if (tier.requirements.competitions) {
-                progress.competitions = {
-                    current: stats.completedCompetitions,
-                    required: tier.requirements.competitions
-                };
-            }
-
-            if (tier.requirements.points) {
-                progress.points = {
-                    current: inventory.points,
-                    required: tier.requirements.points
-                };
-            }
-
-            if (tier.requirements.multiplier) {
-                progress.multiplier = {
-                    current: inventory.multiplier,
-                    required: tier.requirements.multiplier
-                };
-            }
-
-            return progress;
+        // Get available rewards
+        getAvailableRewards: (achievement: Achievement) => {
+            const store = get(rewardStore);
+            return store.rewards.filter(r => 
+                r.achievementId === achievement.id && 
+                !store.claimedRewards.includes(r.id)
+            );
         }
     };
 }

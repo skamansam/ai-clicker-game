@@ -3,6 +3,8 @@
     import { onMount } from 'svelte';
     import { fade, slide } from 'svelte/transition';
     import { formatDistance } from 'date-fns';
+    import { db, auth } from '$lib/firebase';
+    import { collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, serverTimestamp, doc, increment } from 'firebase/firestore';
     import { achievementSocialStore } from '$lib/stores/achievement-social';
     import { achievementStatsStore } from '$lib/stores/achievement-stats';
     import { challengeStore } from '$lib/stores/achievement-challenges';
@@ -17,12 +19,12 @@
 
     interface GuildEvent {
         id: string;
-        guild_id: string;
+        guildId: string;
         title: string;
         description: string;
         type: 'challenge' | 'competition' | 'raid';
-        start_time: string;
-        end_time: string;
+        startTime: Date;
+        endTime: Date;
         requirements: any;
         rewards: any;
         participants: number;
@@ -33,11 +35,11 @@
         name: string;
         description: string;
         icon: string;
-        banner_url: string;
+        bannerUrl: string;
         level: number;
         members: number;
         achievements: number;
-        weekly_points: number;
+        weeklyPoints: number;
         events: GuildEvent[];
         requirements: {
             level?: number;
@@ -53,33 +55,61 @@
     let loading = true;
 
     onMount(async () => {
+        const user = auth.currentUser;
+        if (!user) return;
+
         loading = true;
         try {
-            const { data: feedData } = await supabase
-                .from('social_feed')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(50);
+            // Load social feed
+            const feedRef = collection(db, 'social_feed');
+            const feedQuery = query(
+                feedRef,
+                orderBy('createdAt', 'desc'),
+                limit(50)
+            );
+            const feedSnapshot = await getDocs(feedQuery);
+            socialFeed = feedSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
 
-            const { data: friendsData } = await supabase
-                .from('friends')
-                .select('*')
-                .order('last_active', { ascending: false });
+            // Load friends
+            const friendsRef = collection(db, 'friends');
+            const friendsQuery = query(
+                friendsRef,
+                where('userId', '==', user.uid),
+                orderBy('lastActive', 'desc')
+            );
+            const friendsSnapshot = await getDocs(friendsQuery);
+            friends = friendsSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
 
-            const { data: guildsData } = await supabase
-                .from('guilds')
-                .select('*')
-                .order('weekly_points', { ascending: false });
+            // Load guilds
+            const guildsRef = collection(db, 'guilds');
+            const guildsQuery = query(
+                guildsRef,
+                orderBy('weeklyPoints', 'desc')
+            );
+            const guildsSnapshot = await getDocs(guildsQuery);
+            guilds = guildsSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
 
-            const { data: eventsData } = await supabase
-                .from('guild_events')
-                .select('*')
-                .gte('end_time', new Date().toISOString());
-
-            socialFeed = feedData;
-            friends = friendsData;
-            guilds = guildsData;
-            guildEvents = eventsData;
+            // Load guild events
+            const now = new Date();
+            const eventsRef = collection(db, 'guild_events');
+            const eventsQuery = query(
+                eventsRef,
+                where('endTime', '>=', now)
+            );
+            const eventsSnapshot = await getDocs(eventsQuery);
+            guildEvents = eventsSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
         } catch (error) {
             console.error('Error loading social data:', error);
         } finally {
@@ -92,84 +122,109 @@
     }
 
     async function joinGuild(guildId: string) {
-        try {
-            const { error } = await supabase
-                .rpc('join_guild', {
-                    guild_id: guildId
-                });
+        const user = auth.currentUser;
+        if (!user) return;
 
-            if (error) throw error;
+        try {
+            // Check guild requirements
+            const guildRef = doc(db, 'guilds', guildId);
+            const guildDoc = await getDocs(guildRef);
+            const guild = guildDoc.data() as Guild;
+
+            // Get user stats
+            const userStatsRef = doc(db, 'user_stats', user.uid);
+            const userStatsDoc = await getDocs(userStatsRef);
+            const userStats = userStatsDoc.data();
+
+            // Check requirements
+            if (
+                (guild.requirements.level && userStats.level < guild.requirements.level) ||
+                (guild.requirements.achievements && userStats.achievements < guild.requirements.achievements) ||
+                (guild.requirements.activity && userStats.activity < guild.requirements.activity)
+            ) {
+                throw new Error('You do not meet the requirements to join this guild');
+            }
+
+            // Add user to guild
+            const guildMemberRef = collection(db, 'guild_members');
+            await addDoc(guildMemberRef, {
+                userId: user.uid,
+                guildId,
+                joinedAt: serverTimestamp(),
+                role: 'member'
+            });
+
+            // Update guild member count
+            await updateDoc(guildRef, {
+                members: increment(1)
+            });
 
             // Refresh guilds
-            const { data } = await supabase
-                .from('guilds')
-                .select('*')
-                .order('weekly_points', { ascending: false });
-
-            guilds = data;
+            const guildsRef = collection(db, 'guilds');
+            const guildsQuery = query(guildsRef, orderBy('weeklyPoints', 'desc'));
+            const guildsSnapshot = await getDocs(guildsQuery);
+            guilds = guildsSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
         } catch (error) {
             console.error('Error joining guild:', error);
-        }
-    }
-
-    async function createGuildEvent(guildId: string, event: Partial<GuildEvent>) {
-        try {
-            const { error } = await supabase
-                .from('guild_events')
-                .insert([{
-                    guild_id: guildId,
-                    ...event
-                }]);
-
-            if (error) throw error;
-
-            // Refresh events
-            const { data } = await supabase
-                .from('guild_events')
-                .select('*')
-                .gte('end_time', new Date().toISOString());
-
-            guildEvents = data;
-        } catch (error) {
-            console.error('Error creating event:', error);
+            throw error;
         }
     }
 
     async function joinEvent(eventId: string) {
-        try {
-            const { error } = await supabase
-                .rpc('join_guild_event', {
-                    event_id: eventId
-                });
+        const user = auth.currentUser;
+        if (!user) return;
 
-            if (error) throw error;
+        try {
+            const eventRef = doc(db, 'guild_events', eventId);
+            const participantRef = collection(db, 'event_participants');
+
+            await addDoc(participantRef, {
+                userId: user.uid,
+                eventId,
+                joinedAt: serverTimestamp()
+            });
+
+            await updateDoc(eventRef, {
+                participants: increment(1)
+            });
 
             // Refresh events
-            const { data } = await supabase
-                .from('guild_events')
-                .select('*')
-                .gte('end_time', new Date().toISOString());
-
-            guildEvents = data;
+            const now = new Date();
+            const eventsRef = collection(db, 'guild_events');
+            const eventsQuery = query(eventsRef, where('endTime', '>=', now));
+            const eventsSnapshot = await getDocs(eventsQuery);
+            guildEvents = eventsSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
         } catch (error) {
             console.error('Error joining event:', error);
+            throw error;
         }
     }
 
     async function sendFriendInvite(userId: string) {
-        try {
-            const { error } = await supabase
-                .rpc('send_friend_invite', {
-                    target_user_id: userId,
-                    message: inviteMessage
-                });
+        const user = auth.currentUser;
+        if (!user) return;
 
-            if (error) throw error;
+        try {
+            const friendInviteRef = collection(db, 'friend_invites');
+            await addDoc(friendInviteRef, {
+                senderId: user.uid,
+                receiverId: userId,
+                message: inviteMessage,
+                status: 'pending',
+                createdAt: serverTimestamp()
+            });
 
             showInvite = false;
             inviteMessage = '';
         } catch (error) {
-            console.error('Error sending invite:', error);
+            console.error('Error sending friend invite:', error);
+            throw error;
         }
     }
 </script>
@@ -215,13 +270,13 @@
                     <div class="post-card" transition:slide>
                         <div class="post-header">
                             <img
-                                src={post.user.avatar_url}
+                                src={post.user.avatarUrl}
                                 alt={post.user.username}
                                 class="avatar"
                             />
                             <div class="post-info">
                                 <span class="username">{post.user.username}</span>
-                                <span class="time">{formatTime(post.created_at)}</span>
+                                <span class="time">{formatTime(post.createdAt)}</span>
                             </div>
                         </div>
 
@@ -254,14 +309,14 @@
                         <div class="post-actions">
                             <button
                                 class="like-btn"
-                                class:liked={post.liked_by_user}
+                                class:liked={post.likedByUser}
                                 on:click={() => achievementSocialStore.toggleLike(post.id)}
                             >
-                                {post.liked_by_user ? '❤️' : '🤍'} {post.likes}
+                                {post.likedByUser ? '❤️' : '🤍'} {post.likes}
                             </button>
                             <button
                                 class="comment-btn"
-                                on:click={() => post.show_comments = !post.show_comments}
+                                on:click={() => post.showComments = !post.showComments}
                             >
                                 💬 {post.comments}
                             </button>
@@ -270,19 +325,19 @@
                             </button>
                         </div>
 
-                        {#if post.show_comments}
+                        {#if post.showComments}
                             <div class="comments" transition:slide>
-                                {#each post.comment_list as comment}
+                                {#each post.commentList as comment}
                                     <div class="comment">
                                         <img
-                                            src={comment.user.avatar_url}
+                                            src={comment.user.avatarUrl}
                                             alt={comment.user.username}
                                             class="avatar"
                                         />
                                         <div class="comment-content">
                                             <span class="username">{comment.user.username}</span>
                                             <p>{comment.content}</p>
-                                            <span class="time">{formatTime(comment.created_at)}</span>
+                                            <span class="time">{formatTime(comment.createdAt)}</span>
                                         </div>
                                     </div>
                                 {/each}
@@ -290,13 +345,13 @@
                                     <input
                                         type="text"
                                         placeholder="Write a comment..."
-                                        bind:value={post.new_comment}
+                                        bind:value={post.newComment}
                                     />
                                     <button
                                         on:click={() => {
-                                            if (post.new_comment) {
-                                                achievementSocialStore.addComment(post.id, post.new_comment);
-                                                post.new_comment = '';
+                                            if (post.newComment) {
+                                                achievementSocialStore.addComment(post.id, post.newComment);
+                                                post.newComment = '';
                                             }
                                         }}
                                     >
@@ -313,18 +368,18 @@
                 {#each friends as friend}
                     <div class="friend-card">
                         <img
-                            src={friend.avatar_url}
+                            src={friend.avatarUrl}
                             alt={friend.username}
                             class="avatar"
                         />
                         <div class="friend-info">
                             <span class="username">{friend.username}</span>
                             <span class="status" class:online={friend.online}>
-                                {friend.online ? 'Online' : `Last seen ${formatTime(friend.last_active)}`}
+                                {friend.online ? 'Online' : `Last seen ${formatTime(friend.lastActive)}`}
                             </span>
                         </div>
                         <div class="friend-stats">
-                            <span>🏆 {friend.total_achievements}</span>
+                            <span>🏆 {friend.totalAchievements}</span>
                             <span>⭐ Level {friend.level}</span>
                         </div>
                         <div class="friend-actions">
@@ -339,7 +394,7 @@
                 {#each guilds as guild}
                     <div
                         class="guild-card"
-                        style="background-image: url({guild.banner_url})"
+                        style="background-image: url({guild.bannerUrl})"
                     >
                         <div class="guild-content">
                             <div class="guild-header">
@@ -357,7 +412,7 @@
                             <div class="guild-stats">
                                 <span>👥 {guild.members} Members</span>
                                 <span>🏆 {guild.achievements} Achievements</span>
-                                <span>📈 {guild.weekly_points} Points</span>
+                                <span>📈 {guild.weeklyPoints} Points</span>
                             </div>
                             <div class="guild-actions">
                                 <button
@@ -395,7 +450,7 @@
                         </div>
                         <p>{event.description}</p>
                         <div class="event-info">
-                            <span>⏳ {formatTime(event.end_time)}</span>
+                            <span>⏳ {formatTime(event.endTime)}</span>
                             <span>👥 {event.participants} Participants</span>
                         </div>
                         <div class="event-actions">
@@ -405,12 +460,27 @@
                             >
                                 Join Event
                             </button>
-                            <button
-                                class="details-btn"
-                                on:click={() => selectedEvent = event}
-                            >
-                                View Details
-                            </button>
+                            {#if event.type === 'challenge'}
+                                <button
+                                    class="details-btn"
+                                    on:click={() => {
+                                        selectedEvent = event;
+                                        challengeStore.loadEventChallenges(event.id);
+                                    }}
+                                >
+                                    View Challenges
+                                </button>
+                            {:else if event.type === 'competition'}
+                                <button
+                                    class="details-btn"
+                                    on:click={() => {
+                                        selectedEvent = event;
+                                        achievementStatsStore.loadLeaderboard(event.id);
+                                    }}
+                                >
+                                    View Leaderboard
+                                </button>
+                            {/if}
                         </div>
                     </div>
                 {/each}

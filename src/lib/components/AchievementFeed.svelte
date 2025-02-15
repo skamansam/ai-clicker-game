@@ -1,323 +1,236 @@
 <!-- src/lib/components/AchievementFeed.svelte -->
 <script lang="ts">
-    import { achievementSocialStore, type AchievementShare } from '$lib/stores/achievement-social';
-    import { slide, fade } from 'svelte/transition';
-    import { flip } from 'svelte/animate';
+    import { onMount, onDestroy } from 'svelte';
+    import { db, auth } from '$lib/firebase';
+    import { collection, query, where, orderBy, limit, onSnapshot, getDocs } from 'firebase/firestore';
+    import type { Achievement } from '$lib/types';
+    import { formatDistanceToNow } from 'date-fns';
+    import { fade, slide } from 'svelte/transition';
 
-    let message = '';
-    export let achievement = null;
+    export let maxItems = 10;
+    export let showFriends = true;
 
-    $: shares = $achievementSocialStore.shares;
-    $: loading = $achievementSocialStore.loading;
-    $: userLikes = $achievementSocialStore.userLikes;
+    let feedItems: Array<{
+        id: string;
+        userId: string;
+        username: string;
+        achievementId: string;
+        achievement: Achievement;
+        timestamp: Date;
+        type: 'unlock' | 'milestone' | 'collection' | 'prestige';
+    }> = [];
 
-    async function shareAchievement() {
-        if (!message.trim() || !achievement) return;
+    let unsubscribe: () => void;
 
-        const success = await achievementSocialStore.shareAchievement(achievement, message.trim());
-        if (success) {
-            message = '';
+    onMount(async () => {
+        const user = auth.currentUser;
+        if (!user) return;
+
+        try {
+            // Get user's friends list if showing friends feed
+            let userIds = [user.uid];
+            if (showFriends) {
+                const friendsRef = collection(db, 'user_friends');
+                const friendsQuery = query(friendsRef, where('userId', '==', user.uid));
+                const friendsSnapshot = await getDocs(friendsQuery);
+                const friendIds = friendsSnapshot.docs.map(doc => doc.data().friendId);
+                userIds = [...userIds, ...friendIds];
+            }
+
+            // Set up real-time listener for feed items
+            const feedRef = collection(db, 'achievement_activity');
+            const feedQuery = query(
+                feedRef,
+                where('userId', 'in', userIds),
+                orderBy('timestamp', 'desc'),
+                limit(maxItems)
+            );
+
+            unsubscribe = onSnapshot(feedQuery, async (snapshot) => {
+                const items = [];
+                
+                for (const doc of snapshot.docs) {
+                    const data = doc.data();
+                    
+                    // Get user info
+                    const userRef = collection(db, 'users');
+                    const userQuery = query(userRef, where('userId', '==', data.userId));
+                    const userSnapshot = await getDocs(userQuery);
+                    const userData = userSnapshot.docs[0]?.data();
+
+                    // Get achievement info if it's an achievement unlock
+                    let achievement = null;
+                    if (data.achievementId) {
+                        const achievementRef = collection(db, 'achievements');
+                        const achievementQuery = query(achievementRef, where('id', '==', data.achievementId));
+                        const achievementSnapshot = await getDocs(achievementQuery);
+                        achievement = achievementSnapshot.docs[0]?.data();
+                    }
+
+                    items.push({
+                        id: doc.id,
+                        userId: data.userId,
+                        username: userData?.username || 'Unknown User',
+                        achievementId: data.achievementId,
+                        achievement,
+                        timestamp: data.timestamp.toDate(),
+                        type: data.type
+                    });
+                }
+
+                feedItems = items;
+            });
+        } catch (error) {
+            console.error('Error setting up achievement feed:', error);
         }
-    }
+    });
 
-    function toggleLike(shareId: string) {
-        achievementSocialStore.toggleLike(shareId);
-    }
+    onDestroy(() => {
+        if (unsubscribe) {
+            unsubscribe();
+        }
+    });
 
-    function deleteShare(shareId: string) {
-        if (confirm('Are you sure you want to delete this share?')) {
-            achievementSocialStore.deleteShare(shareId);
+    function getActivityMessage(item: typeof feedItems[0]): string {
+        switch (item.type) {
+            case 'unlock':
+                return `unlocked ${item.achievement?.name || 'an achievement'}`;
+            case 'milestone':
+                return 'reached a new milestone';
+            case 'collection':
+                return 'completed a collection';
+            case 'prestige':
+                return 'reached a new prestige level';
+            default:
+                return 'did something amazing';
         }
     }
 </script>
 
-<div class="feed-container">
-    {#if achievement}
-        <div class="share-form" transition:slide>
-            <textarea
-                bind:value={message}
-                placeholder="Share your thoughts about this achievement..."
-                rows="2"
-            ></textarea>
-            <button
-                class="share-btn"
-                disabled={!message.trim()}
-                on:click={shareAchievement}
-            >
-                Share
-            </button>
-        </div>
-    {/if}
-
-    <div class="feed">
-        {#if loading}
-            <div class="loading">Loading shares...</div>
-        {:else if shares.length === 0}
-            <div class="empty">No shares yet. Be the first to share!</div>
-        {:else}
-            {#each shares as share (share.id)}
-                <div
-                    class="share-card"
-                    animate:flip={{ duration: 300 }}
-                    in:fade={{ duration: 200 }}
-                >
-                    <div class="share-header">
+<div class="achievement-feed">
+    <h2>Achievement Feed</h2>
+    {#if feedItems.length === 0}
+        <p class="empty-feed">No recent activity</p>
+    {:else}
+        <ul class="feed-list">
+            {#each feedItems as item (item.id)}
+                <li class="feed-item" transition:slide|local>
+                    <div class="feed-content" transition:fade|local>
                         <div class="user-info">
-                            {#if share.profiles.avatar_url}
-                                <img
-                                    src={share.profiles.avatar_url}
-                                    alt={share.profiles.username}
-                                    class="avatar"
-                                />
-                            {:else}
-                                <div class="avatar-placeholder">
-                                    {share.profiles.username[0].toUpperCase()}
+                            <span class="username">{item.username}</span>
+                            <span class="timestamp">{formatDistanceToNow(item.timestamp, { addSuffix: true })}</span>
+                        </div>
+                        <p class="activity">
+                            {getActivityMessage(item)}
+                        </p>
+                        {#if item.achievement}
+                            <div class="achievement-info">
+                                <img src={item.achievement.icon} alt={item.achievement.name} class="achievement-icon" />
+                                <div class="achievement-details">
+                                    <span class="achievement-name">{item.achievement.name}</span>
+                                    <span class="achievement-description">{item.achievement.description}</span>
                                 </div>
-                            {/if}
-                            <span class="username">{share.profiles.username}</span>
-                        </div>
-                        <div class="share-meta">
-                            <span class="time">
-                                {achievementSocialStore.formatRelativeTime(share.created_at)}
-                            </span>
-                            {#if share.user_id === $supabase.auth.user()?.id}
-                                <button
-                                    class="delete-btn"
-                                    on:click={() => deleteShare(share.id)}
-                                >
-                                    ×
-                                </button>
-                            {/if}
-                        </div>
+                            </div>
+                        {/if}
                     </div>
-
-                    <div class="achievement-info">
-                        <div
-                            class="achievement-badge"
-                            style="--badge-color: {share.achievements.tier_color}"
-                        >
-                            {share.achievements.tier}
-                        </div>
-                        <span class="achievement-name">
-                            {share.achievements.name}
-                        </span>
-                    </div>
-
-                    <p class="message">{share.message}</p>
-
-                    <div class="share-footer">
-                        <button
-                            class="like-btn"
-                            class:liked={userLikes.has(share.id)}
-                            on:click={() => toggleLike(share.id)}
-                        >
-                            {userLikes.has(share.id) ? '❤️' : '🤍'}
-                            <span class="like-count">{share.likes}</span>
-                        </button>
-                    </div>
-                </div>
+                </li>
             {/each}
-        {/if}
-    </div>
+        </ul>
+    {/if}
 </div>
 
 <style>
-    .feed-container {
-        margin-top: 1rem;
+    .achievement-feed {
+        background: var(--background-secondary);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
 
-    .share-form {
+    h2 {
+        margin: 0 0 1.5rem;
+        color: var(--text-primary);
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    .empty-feed {
+        text-align: center;
+        color: var(--text-secondary);
+        font-style: italic;
+    }
+
+    .feed-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    .feed-item {
         margin-bottom: 1rem;
+        padding: 1rem;
+        background: var(--background-primary);
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
 
-    textarea {
-        width: 100%;
-        padding: 0.75rem;
-        border: 1px solid #dee2e6;
-        border-radius: 0.375rem;
-        resize: vertical;
-        font-family: inherit;
-        margin-bottom: 0.5rem;
-    }
-
-    textarea:focus {
-        outline: none;
-        border-color: #339af0;
-        box-shadow: 0 0 0 2px rgba(51, 154, 240, 0.2);
-    }
-
-    .share-btn {
-        padding: 0.5rem 1rem;
-        border: none;
-        border-radius: 0.25rem;
-        background: #339af0;
-        color: white;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .share-btn:hover:not(:disabled) {
-        background: #228be6;
-    }
-
-    .share-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .feed {
+    .feed-content {
         display: flex;
         flex-direction: column;
-        gap: 1rem;
-    }
-
-    .loading, .empty {
-        text-align: center;
-        padding: 2rem;
-        color: #868e96;
-    }
-
-    .share-card {
-        background: white;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    .share-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.75rem;
+        gap: 0.5rem;
     }
 
     .user-info {
         display: flex;
+        justify-content: space-between;
         align-items: center;
-        gap: 0.5rem;
-    }
-
-    .avatar, .avatar-placeholder {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        object-fit: cover;
-    }
-
-    .avatar-placeholder {
-        background: #dee2e6;
-        color: #495057;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
     }
 
     .username {
-        font-weight: bold;
-        color: #495057;
+        font-weight: 600;
+        color: var(--text-primary);
     }
 
-    .share-meta {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+    .timestamp {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
     }
 
-    .time {
-        color: #868e96;
-        font-size: 0.9rem;
-    }
-
-    .delete-btn {
-        border: none;
-        background: none;
-        color: #868e96;
-        font-size: 1.2rem;
-        cursor: pointer;
-        padding: 0.25rem;
-        line-height: 1;
-        border-radius: 50%;
-        transition: all 0.2s;
-    }
-
-    .delete-btn:hover {
-        background: #f1f3f5;
-        color: #ff6b6b;
+    .activity {
+        margin: 0;
+        color: var(--text-primary);
     }
 
     .achievement-info {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.75rem;
+        gap: 1rem;
+        padding: 0.5rem;
+        background: var(--background-tertiary);
+        border-radius: 0.25rem;
     }
 
-    .achievement-badge {
-        padding: 0.25rem 0.5rem;
+    .achievement-icon {
+        width: 2rem;
+        height: 2rem;
         border-radius: 0.25rem;
-        background: var(--badge-color);
-        color: white;
-        font-size: 0.8rem;
-        font-weight: bold;
-        text-transform: uppercase;
+    }
+
+    .achievement-details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
     }
 
     .achievement-name {
-        color: #495057;
         font-weight: 500;
+        color: var(--text-primary);
     }
 
-    .message {
-        margin: 0 0 0.75rem 0;
-        color: #495057;
-        line-height: 1.5;
-        white-space: pre-wrap;
-    }
-
-    .share-footer {
-        display: flex;
-        justify-content: flex-end;
-    }
-
-    .like-btn {
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-        padding: 0.5rem;
-        border: none;
-        background: none;
-        cursor: pointer;
-        transition: all 0.2s;
-        border-radius: 0.25rem;
-    }
-
-    .like-btn:hover {
-        background: #f1f3f5;
-    }
-
-    .like-count {
-        color: #495057;
-        font-weight: 500;
-    }
-
-    @media (max-width: 768px) {
-        .share-card {
-            padding: 0.75rem;
-        }
-
-        .avatar, .avatar-placeholder {
-            width: 28px;
-            height: 28px;
-        }
-
-        .username {
-            font-size: 0.9rem;
-        }
-
-        .message {
-            font-size: 0.9rem;
-        }
+    .achievement-description {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
     }
 </style>

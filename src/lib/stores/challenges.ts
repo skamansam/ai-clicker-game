@@ -1,7 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import type { AchievementChallenge, UserChallenge, ChallengeStatus } from '$lib/types';
-import { supabase } from '$lib/supabase';
-import { gameStore } from './game';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 
 interface ChallengesStore {
     activeChallenges: AchievementChallenge[];
@@ -26,31 +26,51 @@ function createChallengesStore() {
             update(store => ({ ...store, loading: true }));
             
             try {
-                const { data: challenges, error } = await supabase
-                    .from('achievement_challenges')
-                    .select('*')
-                    .gte('end_time', new Date().toISOString());
-                
-                if (error) throw error;
+                const user = auth.currentUser;
+                if (!user) return;
 
-                const { data: userChallenges, error: userError } = await supabase
-                    .from('user_challenges')
-                    .select('*');
-                
-                if (userError) throw userError;
+                // Get all challenges
+                const challengesRef = collection(db, 'achievement_challenges');
+                const challengesQuery = query(challengesRef, orderBy('startDate', 'desc'));
+                const challengesSnapshot = await getDocs(challengesQuery);
+                const challenges = challengesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as AchievementChallenge[];
+
+                // Get user's challenges
+                const userChallengesRef = collection(db, 'user_challenges');
+                const userChallengesQuery = query(userChallengesRef, 
+                    where('userId', '==', user.uid),
+                    orderBy('startedAt', 'desc')
+                );
+                const userChallengesSnapshot = await getDocs(userChallengesQuery);
+                const userChallenges = userChallengesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as UserChallenge[];
+
+                // Filter active challenges
+                const now = new Date();
+                const activeChallenges = challenges.filter(challenge => {
+                    const startDate = new Date(challenge.startDate);
+                    const endDate = new Date(challenge.endDate);
+                    return now >= startDate && now <= endDate;
+                });
 
                 update(store => ({
                     ...store,
-                    activeChallenges: challenges || [],
-                    userChallenges: userChallenges || [],
+                    activeChallenges,
+                    userChallenges,
                     loading: false,
                     error: null
                 }));
             } catch (error) {
+                console.error('Error loading challenges:', error);
                 update(store => ({
                     ...store,
                     loading: false,
-                    error: error.message
+                    error: 'Failed to load challenges'
                 }));
             }
         },
@@ -58,74 +78,90 @@ function createChallengesStore() {
         // Join a challenge
         async joinChallenge(challengeId: string) {
             try {
-                const { data: challenge, error: challengeError } = await supabase
-                    .from('achievement_challenges')
-                    .select('*')
-                    .eq('id', challengeId)
-                    .single();
+                const user = auth.currentUser;
+                if (!user) return;
 
-                if (challengeError) throw challengeError;
+                const challengesRef = collection(db, 'achievement_challenges');
+                const challengeQuery = query(challengesRef, where('id', '==', challengeId));
+                const challengeSnapshot = await getDocs(challengeQuery);
+                const challenge = challengeSnapshot.docs[0].data() as AchievementChallenge;
 
-                const { data: userChallenge, error } = await supabase
-                    .from('user_challenges')
-                    .insert({
-                        challenge_id: challengeId,
-                        status: 'active',
-                        progress: new Array(challenge.requirement_type.length).fill(0),
-                        start_time: new Date().toISOString()
-                    })
-                    .select()
-                    .single();
-
-                if (error) throw error;
+                const userChallengesRef = collection(db, 'user_challenges');
+                await addDoc(userChallengesRef, {
+                    userId: user.uid,
+                    challengeId,
+                    status: 'active',
+                    progress: new Array(challenge.requirement_type.length).fill(0),
+                    startedAt: serverTimestamp()
+                });
 
                 update(store => ({
                     ...store,
-                    userChallenges: [...store.userChallenges, userChallenge]
+                    userChallenges: [...store.userChallenges, {
+                        id: '',
+                        userId: user.uid,
+                        challengeId,
+                        status: 'active',
+                        progress: new Array(challenge.requirement_type.length).fill(0),
+                        startedAt: serverTimestamp()
+                    }]
                 }));
             } catch (error) {
-                update(store => ({ ...store, error: error.message }));
+                console.error('Error joining challenge:', error);
+                update(store => ({ ...store, error: 'Failed to join challenge' }));
             }
         },
 
         // Update challenge progress
         async updateProgress(challengeId: string, progress: number[]) {
             try {
-                const { data: challenge } = await supabase
-                    .from('achievement_challenges')
-                    .select('*')
-                    .eq('id', challengeId)
-                    .single();
+                const user = auth.currentUser;
+                if (!user) return;
 
-                const isCompleted = progress.every((p, i) => p >= challenge.requirement_values[i]);
-                const status: ChallengeStatus = isCompleted ? 'completed' : 'active';
+                const challengesRef = collection(db, 'achievement_challenges');
+                const challengeQuery = query(challengesRef, where('id', '==', challengeId));
+                const challengeSnapshot = await getDocs(challengeQuery);
+                const challenge = challengeSnapshot.docs[0].data() as AchievementChallenge;
 
-                const { data: userChallenge, error } = await supabase
-                    .from('user_challenges')
-                    .update({
+                const userChallengesRef = collection(db, 'user_challenges');
+                const userChallengeQuery = query(userChallengesRef,
+                    where('userId', '==', user.uid),
+                    where('challengeId', '==', challengeId),
+                    where('status', '==', 'active'),
+                    limit(1)
+                );
+                const userChallengeSnapshot = await getDocs(userChallengeQuery);
+
+                if (!userChallengeSnapshot.empty) {
+                    const userChallenge = userChallengeSnapshot.docs[0];
+                    const isCompleted = progress.every((p, i) => p >= challenge.requirement_values[i]);
+                    const status: ChallengeStatus = isCompleted ? 'completed' : 'active';
+
+                    await updateDoc(userChallenge.ref, {
                         progress,
-                        status,
-                        completion_time: isCompleted ? new Date().toISOString() : null
-                    })
-                    .eq('challenge_id', challengeId)
-                    .select()
-                    .single();
+                        updatedAt: serverTimestamp(),
+                        status
+                    });
 
-                if (error) throw error;
+                    if (isCompleted) {
+                        // Apply challenge reward
+                        // gameStore.addMultiplier(challenge.reward_multiplier);
+                    }
 
-                if (isCompleted) {
-                    // Apply challenge reward
-                    gameStore.addMultiplier(challenge.reward_multiplier);
+                    update(store => ({
+                        ...store,
+                        userChallenges: store.userChallenges.map(uc =>
+                            uc.challengeId === challengeId ? {
+                                ...uc,
+                                progress,
+                                status
+                            } : uc
+                        )
+                    }));
                 }
-
-                update(store => ({
-                    ...store,
-                    userChallenges: store.userChallenges.map(uc =>
-                        uc.challenge_id === challengeId ? userChallenge : uc
-                    )
-                }));
             } catch (error) {
-                update(store => ({ ...store, error: error.message }));
+                console.error('Error updating challenge progress:', error);
+                update(store => ({ ...store, error: 'Failed to update challenge progress' }));
             }
         },
 
@@ -135,11 +171,11 @@ function createChallengesStore() {
             
             update(store => {
                 const updatedChallenges = store.userChallenges.map(uc => {
-                    const challenge = store.activeChallenges.find(c => c.id === uc.challenge_id);
+                    const challenge = store.activeChallenges.find(c => c.id === uc.challengeId);
                     if (!challenge) return uc;
 
-                    const endTime = new Date(challenge.end_time);
-                    if (uc.status === 'active' && endTime < now) {
+                    const endDate = new Date(challenge.endDate);
+                    if (uc.status === 'active' && endDate < now) {
                         return { ...uc, status: 'expired' };
                     }
                     return uc;

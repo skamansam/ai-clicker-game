@@ -1,11 +1,11 @@
 import { writable } from 'svelte/store';
-import { supabase } from '$lib/supabase';
-import type { Achievement, AchievementStats, AchievementLeaderboard } from '$lib/types';
-import { achievementStore } from './achievements';
+import type { Achievement, AchievementStats, ActivityLog } from '$lib/types';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, serverTimestamp, orderBy, limit, increment } from 'firebase/firestore';
 
 interface AchievementStatsStore {
     stats: AchievementStats[];
-    leaderboards: Record<string, AchievementLeaderboard[]>;
+    leaderboards: Record<string, AchievementStats[]>;
     globalStats: {
         totalAchievements: number;
         totalPlayers: number;
@@ -89,22 +89,64 @@ function createAchievementStatsStore() {
 
             try {
                 // Load global stats
-                const { data: globalData, error: globalError } = await supabase
-                    .rpc('get_global_achievement_stats');
-
-                if (globalError) throw globalError;
+                const globalStatsRef = collection(db, 'global_achievement_stats');
+                const globalStatsSnapshot = await getDocs(globalStatsRef);
+                const globalData = globalStatsSnapshot.docs[0].data();
 
                 // Load player stats
-                const { data: playerData, error: playerError } = await supabase
-                    .rpc('get_player_achievement_stats');
+                const user = auth.currentUser;
+                if (!user) return;
 
-                if (playerError) throw playerError;
+                const userStatsRef = collection(db, 'user_achievement_stats');
+                const userStatsQuery = query(userStatsRef, where('userId', '==', user.uid));
+                const userStatsSnapshot = await getDocs(userStatsQuery);
+                let playerData;
+
+                if (!userStatsSnapshot.empty) {
+                    playerData = {
+                        id: userStatsSnapshot.docs[0].id,
+                        ...userStatsSnapshot.docs[0].data()
+                    };
+                } else {
+                    // Initialize stats if they don't exist
+                    const newStatsRef = await addDoc(userStatsRef, {
+                        userId: user.uid,
+                        totalUnlocked: 0,
+                        completionRate: 0,
+                        averageTimeToUnlock: '0',
+                        bestStreak: 0,
+                        currentStreak: 0,
+                        favoriteCategory: '',
+                        rarest: null,
+                        fastest: null,
+                        recentActivity: [],
+                        categoryProgress: {},
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                    playerData = {
+                        id: newStatsRef.id,
+                        totalUnlocked: 0,
+                        completionRate: 0,
+                        averageTimeToUnlock: '0',
+                        bestStreak: 0,
+                        currentStreak: 0,
+                        favoriteCategory: '',
+                        rarest: null,
+                        fastest: null,
+                        recentActivity: [],
+                        categoryProgress: {}
+                    };
+                }
 
                 // Load category progress
-                const { data: categoryData, error: categoryError } = await supabase
-                    .rpc('get_category_progress');
-
-                if (categoryError) throw categoryError;
+                const categoryProgressRef = collection(db, 'category_progress');
+                const categoryProgressQuery = query(categoryProgressRef, where('userId', '==', user.uid));
+                const categoryProgressSnapshot = await getDocs(categoryProgressQuery);
+                const categoryData = categoryProgressSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
 
                 update(store => ({
                     ...store,
@@ -115,7 +157,7 @@ function createAchievementStatsStore() {
                     playerStats: {
                         ...store.playerStats,
                         ...playerData,
-                        categoryProgress: categoryData
+                        categoryProgress: categoryData.reduce((acc, curr) => ({ ...acc, [curr.category]: curr }), {})
                     },
                     loading: false
                 }));
@@ -131,14 +173,13 @@ function createAchievementStatsStore() {
 
         async loadLeaderboard(achievementId: string) {
             try {
-                const { data, error } = await supabase
-                    .from('achievement_leaderboard')
-                    .select('*')
-                    .eq('achievement_id', achievementId)
-                    .order('time_to_unlock', { ascending: true })
-                    .limit(100);
-
-                if (error) throw error;
+                const leaderboardRef = collection(db, 'achievement_leaderboard');
+                const leaderboardQuery = query(leaderboardRef, where('achievementId', '==', achievementId));
+                const leaderboardSnapshot = await getDocs(leaderboardQuery);
+                const data = leaderboardSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
 
                 update(store => ({
                     ...store,
@@ -154,38 +195,57 @@ function createAchievementStatsStore() {
 
         async updateStreak() {
             try {
-                const { data, error } = await supabase
-                    .rpc('update_achievement_streak');
+                const user = auth.currentUser;
+                if (!user) return;
 
-                if (error) throw error;
+                const userStatsRef = collection(db, 'user_achievement_stats');
+                const userStatsQuery = query(userStatsRef, where('userId', '==', user.uid));
+                const userStatsSnapshot = await getDocs(userStatsQuery);
 
-                update(store => ({
-                    ...store,
-                    playerStats: {
-                        ...store.playerStats,
-                        currentStreak: data.current_streak,
-                        bestStreak: Math.max(store.playerStats.bestStreak, data.current_streak)
+                if (!userStatsSnapshot.empty) {
+                    const statsDoc = userStatsSnapshot.docs[0];
+                    const lastAchievement = statsDoc.data().lastAchievement?.toDate();
+                    const now = new Date();
+                    const daysSinceLastAchievement = lastAchievement 
+                        ? Math.floor((now.getTime() - lastAchievement.getTime()) / (1000 * 60 * 60 * 24))
+                        : null;
+
+                    await updateDoc(statsDoc.ref, {
+                        currentStreak: daysSinceLastAchievement === 1 ? increment(1) : 1,
+                        longestStreak: daysSinceLastAchievement === 1 
+                            ? increment(0) // Will be updated in the next step if needed
+                            : statsDoc.data().longestStreak,
+                        lastAchievement: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+
+                    // Update longest streak if needed
+                    if (daysSinceLastAchievement === 1 && statsDoc.data().currentStreak + 1 > statsDoc.data().longestStreak) {
+                        await updateDoc(statsDoc.ref, {
+                            longestStreak: statsDoc.data().currentStreak + 1
+                        });
                     }
-                }));
+                }
+
+                await achievementStatsStore.loadStats();
             } catch (error) {
                 console.error('Error updating streak:', error);
             }
         },
 
         async recordActivity(type: 'unlock' | 'combo' | 'challenge', achievement?: Achievement, description?: string) {
-            const activity = {
-                type,
-                achievement,
-                description: description || `Unlocked ${achievement?.name}`,
-                time: new Date().toISOString()
-            };
+            const user = auth.currentUser;
+            if (!user) return;
 
             try {
-                const { error } = await supabase
-                    .from('achievement_activity')
-                    .insert([activity]);
-
-                if (error) throw error;
+                const activityRef = collection(db, 'achievement_activity');
+                await addDoc(activityRef, {
+                    userId: user.uid,
+                    achievementId: achievement?.id,
+                    type,
+                    description: description || `Unlocked ${achievement?.name}`,
+                    timestamp: serverTimestamp()
+                });
 
                 update(store => ({
                     ...store,
