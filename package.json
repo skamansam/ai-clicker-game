@@ -9,8 +9,10 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
-		"supabase:gen": "supabase "
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"supabase:start": "supabase start",
+		"supabase:stop": "supabase stop",
+		"supabase:deploy": "supabase deploy"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^4.0.0",
@@ -22,6 +24,7 @@
 		"vite": "^6.0.0"
 	},
 	"dependencies": {
-		"@supabase/supabase-js": "^2.48.1"
+		"@supabase/supabase-js": "^2.48.1",
+		"supabase": "^2.9.6"
 	}
 }
