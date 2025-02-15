@@ -1,6 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import type { Achievement, UserAchievement } from '$lib/types';
-import { supabase } from '$lib/supabase';
+import { db, auth } from '$lib/firebase';
+import { collection, query, where, getDocs, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { gameStore } from './game';
 import { notificationStore } from './notifications';
 
@@ -50,34 +51,41 @@ function createAchievementStore() {
 
         // Load achievements from database
         async loadAchievements() {
-            update(store => ({ ...store, loading: true }));
-            
+            update(state => ({ ...state, loading: true, error: null }));
             try {
-                const { data: achievements, error: achievementsError } = await supabase
-                    .from('achievements')
-                    .select('*')
-                    .order('tier_level', { ascending: true });
-                
-                if (achievementsError) throw achievementsError;
+                const achievementsRef = collection(db, 'achievements');
+                const achievementsSnapshot = await getDocs(achievementsRef);
+                const achievements = achievementsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as Achievement[];
 
-                const { data: userAchievements, error: userError } = await supabase
-                    .from('user_achievements')
-                    .select('*');
+                // Load user achievements if logged in
+                const user = auth.currentUser;
+                let unlockedAchievements: UserAchievement[] = [];
                 
-                if (userError) throw userError;
+                if (user) {
+                    const userAchievementsRef = collection(db, 'user_achievements');
+                    const q = query(userAchievementsRef, where('userId', '==', user.uid));
+                    const userAchievementsSnapshot = await getDocs(q);
+                    unlockedAchievements = userAchievementsSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    })) as UserAchievement[];
+                }
 
-                update(store => ({
-                    ...store,
-                    achievements: achievements || [],
-                    unlockedAchievements: userAchievements || [],
-                    loading: false,
-                    error: null
+                update(state => ({
+                    ...state,
+                    achievements,
+                    unlockedAchievements,
+                    loading: false
                 }));
             } catch (error) {
-                update(store => ({
-                    ...store,
+                console.error('Error loading achievements:', error);
+                update(state => ({
+                    ...state,
                     loading: false,
-                    error: error.message
+                    error: 'Failed to load achievements'
                 }));
             }
         },
@@ -121,18 +129,53 @@ function createAchievementStore() {
             });
         },
 
-        // Handle achievement unlock with combos
-        async unlockAchievement(achievement: Achievement, progress: number[]) {
+        // Unlock an achievement
+        async unlockAchievement(achievement: Achievement) {
+            const user = auth.currentUser;
+            if (!user) return;
+
             try {
-                const { data: userAchievement, error } = await supabase
-                    .from('user_achievements')
-                    .insert({
-                        achievement_id: achievement.id,
-                        progress,
-                        unlocked_at: new Date().toISOString()
-                    })
-                    .select()
-                    .single();
+                const userAchievementsRef = collection(db, 'user_achievements');
+                await addDoc(userAchievementsRef, {
+                    userId: user.uid,
+                    achievementId: achievement.id,
+                    unlockedAt: new Date().toISOString()
+                });
+
+                update(state => ({
+                    ...state,
+                    unlockedAchievements: [...state.unlockedAchievements, {
+                        userId: user.uid,
+                        achievementId: achievement.id,
+                        unlockedAt: new Date().toISOString()
+                    }]
+                }));
+
+                notificationStore.addNotification({
+                    type: 'achievement',
+                    message: `Achievement Unlocked: ${achievement.title}`,
+                    duration: 5000
+                });
+
+            } catch (error) {
+                console.error('Error unlocking achievement:', error);
+                notificationStore.addNotification({
+                    type: 'error',
+                    message: 'Failed to unlock achievement',
+                    duration: 5000
+                });
+            }
+        },
+
+        // Handle achievement unlock with combos
+        async unlockAchievementWithCombo(achievement: Achievement, progress: number[]) {
+            try {
+                const { data: userAchievement, error } = await addDoc(collection(db, 'user_achievements'), {
+                    userId: auth.currentUser.uid,
+                    achievementId: achievement.id,
+                    progress,
+                    unlockedAt: new Date().toISOString()
+                });
 
                 if (error) throw error;
 
@@ -183,7 +226,7 @@ function createAchievementStore() {
                              a.name.split(' ')[0] === achievement.name.split(' ')[0]
                     );
                     const unlockedInTier = store.unlockedAchievements.filter(
-                        ua => tierAchievements.some(ta => ta.id === ua.achievement_id)
+                        ua => tierAchievements.some(ta => ta.id === ua.achievementId)
                     );
                     if (unlockedInTier.length === tierAchievements.length) {
                         notificationStore.tierCompleted(achievement);
@@ -204,19 +247,16 @@ function createAchievementStore() {
         // Update achievement progress
         async updateProgress(achievementId: string, progress: number[]) {
             try {
-                const { data: userAchievement, error } = await supabase
-                    .from('user_achievements')
-                    .update({ progress })
-                    .eq('achievement_id', achievementId)
-                    .select()
-                    .single();
+                const userAchievementsRef = collection(db, 'user_achievements');
+                const q = query(userAchievementsRef, where('achievementId', '==', achievementId));
+                const userAchievementsSnapshot = await getDocs(q);
+                const userAchievementRef = userAchievementsSnapshot.docs[0].ref;
+                await updateDoc(userAchievementRef, { progress });
 
-                if (error) throw error;
-
-                update(store => ({
-                    ...store,
-                    unlockedAchievements: store.unlockedAchievements.map(ua =>
-                        ua.achievement_id === achievementId ? userAchievement : ua
+                update(state => ({
+                    ...state,
+                    unlockedAchievements: state.unlockedAchievements.map(ua =>
+                        ua.achievementId === achievementId ? { ...ua, progress } : ua
                     )
                 }));
             } catch (error) {
