@@ -1,6 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import type { GameState, Upgrade, UserUpgrade } from '$lib/types';
-import { db, auth } from '$lib/supabase';
+import { db, auth } from '$lib/firebase';
+import { collection, doc, setDoc, getDoc, updateDoc, increment, query, where, getDocs } from 'firebase/firestore';
 
 interface GameStore {
     clicks: number;
@@ -32,65 +33,72 @@ function createGameStore() {
             }));
         },
         purchaseUpgrade: async (upgrade: Upgrade) => {
-            const user = auth.user();
+            const user = auth.currentUser;
             if (!user) return;
 
-            const { data: userUpgrade, error } = await db
-                .from('user_upgrades')
-                .upsert({
-                    user_id: user.id,
-                    upgrade_id: upgrade.id,
-                    quantity: 1
-                }, {
-                    onConflict: 'user_id,upgrade_id'
-                })
-                .select()
-                .single();
+            const userUpgradesRef = collection(db, 'user_upgrades');
+            const upgradeRef = doc(userUpgradesRef, `${user.uid}_${upgrade.id}`);
+            
+            try {
+                const upgradeDoc = await getDoc(upgradeRef);
+                if (upgradeDoc.exists()) {
+                    // Update existing upgrade
+                    await updateDoc(upgradeRef, {
+                        quantity: increment(1)
+                    });
+                } else {
+                    // Create new upgrade
+                    await setDoc(upgradeRef, {
+                        userId: user.uid,
+                        upgradeId: upgrade.id,
+                        quantity: 1,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    });
+                }
 
-            if (error) throw error;
-
-            update(state => {
-                const newClicksPerSecond = state.clicksPerSecond + upgrade.clicks_per_second;
-                return {
+                update(state => ({
                     ...state,
-                    clicksPerSecond: newClicksPerSecond,
-                    upgrades: [...state.upgrades, userUpgrade]
-                };
-            });
+                    clicks: state.clicks - upgrade.cost,
+                    clicksPerSecond: state.clicksPerSecond + upgrade.clicksPerSecond,
+                    upgrades: [...state.upgrades, { ...upgrade, quantity: 1 }]
+                }));
+            } catch (error) {
+                console.error('Error purchasing upgrade:', error);
+                throw error;
+            }
         },
         loadGameState: async () => {
-            const user = auth.user();
+            const user = auth.currentUser;
             if (!user) return;
 
             // Load game state
-            const { data: gameState } = await db
-                .from('game_states')
-                .select()
-                .eq('user_id', user.id)
-                .single();
+            const gameStateRef = doc(db, 'game_states', user.uid);
+            const gameStateDoc = await getDoc(gameStateRef);
+            const gameState = gameStateDoc.data() as GameState;
 
             // Load user upgrades
-            const { data: userUpgrades } = await db
-                .from('user_upgrades')
-                .select('*, upgrades(*)')
-                .eq('user_id', user.id);
+            const userUpgradesRef = collection(db, 'user_upgrades');
+            const userUpgradesQuery = query(userUpgradesRef, where('userId', '==', user.uid));
+            const userUpgradesDocs = await getDocs(userUpgradesQuery);
+            const userUpgrades = userUpgradesDocs.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 
             // Load available upgrades
-            const { data: availableUpgrades } = await db
-                .from('upgrades')
-                .select();
+            const availableUpgradesRef = collection(db, 'upgrades');
+            const availableUpgradesDocs = await getDocs(availableUpgradesRef);
+            const availableUpgrades = availableUpgradesDocs.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 
             // Calculate clicks per second from upgrades
-            const clicksPerSecond = userUpgrades?.reduce((total, upgrade) => {
-                return total + (upgrade.upgrades?.clicks_per_second ?? 0) * upgrade.quantity;
-            }, 0) ?? 0;
+            const clicksPerSecond = userUpgrades.reduce((total, upgrade) => {
+                return total + (upgrade.upgrade.clicksPerSecond ?? 0) * upgrade.quantity;
+            }, 0);
 
             set({
-                clicks: gameState?.clicks ?? 0,
+                clicks: gameState.clicks ?? 0,
                 clicksPerSecond,
-                totalClicks: gameState?.total_clicks ?? 0,
-                upgrades: userUpgrades ?? [],
-                availableUpgrades: availableUpgrades ?? []
+                totalClicks: gameState.totalClicks ?? 0,
+                upgrades: userUpgrades,
+                availableUpgrades: availableUpgrades
             });
 
             // Start auto-clicking based on upgrades
@@ -123,18 +131,15 @@ function createGameStore() {
 
     function startAutoSave() {
         saveInterval = setInterval(async () => {
-            const user = auth.user();
+            const user = auth.currentUser;
             if (!user) return;
 
             const state = get(gameStore);
-            await db
-                .from('game_states')
-                .upsert({
-                    user_id: user.id,
-                    clicks: Math.floor(state.clicks),
-                    clicks_per_second: state.clicksPerSecond,
-                    total_clicks: Math.floor(state.totalClicks)
-                });
+            await setDoc(doc(db, 'game_states', user.uid), {
+                clicks: Math.floor(state.clicks),
+                clicksPerSecond: state.clicksPerSecond,
+                totalClicks: Math.floor(state.totalClicks)
+            });
         }, 5000); // Save every 5 seconds
     }
 

@@ -9,19 +9,28 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"firebase:emulators:start": "firebase emulators:start",
+		"firebase:emulators:export": "firebase emulators:export ./firebase-data",
+		"firebase:emulators:import": "firebase emulators:import ./firebase-data",
+		"dev:emulator": "firebase emulators:start & vite dev"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^4.0.0",
 		"@sveltejs/kit": "^2.16.0",
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
 		"@types/firebase": "^3.2.1",
+		"firebase-tools": "^13.31.1",
 		"svelte": "^5.0.0",
 		"svelte-check": "^4.0.0",
 		"typescript": "^5.0.0",
 		"vite": "^6.0.0"
 	},
 	"dependencies": {
+		"@firebasegen/default-connector": "file:dataconnect-generated/js/default-connector",
 		"firebase": "^10.8.0"
+	},
+	"volta": {
+		"node": "22.14.0"
 	}
 }

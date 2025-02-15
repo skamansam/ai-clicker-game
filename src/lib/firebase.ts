@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
 // Your web app's Firebase configuration
@@ -26,3 +26,14 @@ export const db = getFirestore(app);
 
 // Initialize Firebase Analytics and get a reference to the service
 export const analytics = getAnalytics(app);
+
+// Connect to emulators if in development mode
+if (import.meta.env.DEV) {
+    // Auth emulator
+    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+    
+    // Firestore emulator
+    connectFirestoreEmulator(db, 'localhost', 8080);
+    
+    console.log('Connected to Firebase Emulators');
+}

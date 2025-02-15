@@ -1,43 +1,69 @@
 import { writable } from 'svelte/store';
-import type { User } from '@supabase/supabase-js';
-import { auth } from '$lib/supabase';
+import type { User } from 'firebase/auth';
+import { auth } from '$lib/firebase';
+import { 
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut as firebaseSignOut,
+    onAuthStateChanged
+} from 'firebase/auth';
+
+interface AuthStore {
+    user: User | null;
+    loading: boolean;
+    error: string | null;
+}
 
 function createAuthStore() {
-    const { subscribe, set } = writable<User | null>(null);
+    const { subscribe, set, update } = writable<AuthStore>({
+        user: null,
+        loading: true,
+        error: null
+    });
+
+    // Listen for auth state changes
+    onAuthStateChanged(auth, (user) => {
+        set({
+            user,
+            loading: false,
+            error: null
+        });
+    });
 
     return {
         subscribe,
-        signUp: async (email: string, password: string) => {
-            const { data, error } = await auth.signUp({
-                email,
-                password,
-            });
-            if (error) throw error;
-            return data;
-        },
         signIn: async (email: string, password: string) => {
-            const { data, error } = await auth.signInWithPassword({
-                email,
-                password,
-            });
-            if (error) throw error;
-            set(data.user);
-            return data;
+            try {
+                update(state => ({ ...state, loading: true, error: null }));
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                update(state => ({ ...state, error: error.message }));
+                throw error;
+            } finally {
+                update(state => ({ ...state, loading: false }));
+            }
+        },
+        signUp: async (email: string, password: string) => {
+            try {
+                update(state => ({ ...state, loading: true, error: null }));
+                await createUserWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                update(state => ({ ...state, error: error.message }));
+                throw error;
+            } finally {
+                update(state => ({ ...state, loading: false }));
+            }
         },
         signOut: async () => {
-            const { error } = await auth.signOut();
-            if (error) throw error;
-            set(null);
-        },
-        // Initialize the store with the current session
-        init: async () => {
-            const { data: { user } } = await auth.getUser();
-            set(user);
-            
-            // Listen for auth changes
-            auth.onAuthStateChange((_event, session) => {
-                set(session?.user ?? null);
-            });
+            try {
+                update(state => ({ ...state, loading: true, error: null }));
+                await firebaseSignOut(auth);
+            } catch (error) {
+                update(state => ({ ...state, error: error.message }));
+                throw error;
+            } finally {
+                update(state => ({ ...state, loading: false }));
+            }
         }
     };
 }

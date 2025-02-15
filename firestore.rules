@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read access to all achievements
+    match /achievements/{achievementId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Allow users to read and write their own achievements
+    match /user_achievements/{userAchievementId} {
+      allow read: if true;
+      allow create, update: if request.auth != null && 
+        request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+  }
+}
