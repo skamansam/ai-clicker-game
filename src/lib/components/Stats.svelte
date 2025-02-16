@@ -39,7 +39,7 @@
     .stats {
         display: flex;
         gap: 2rem;
-        background: var(--bg-color);
+        background: var(--widget-bg-color);
         padding: 1rem;
         border-radius: 0.5rem;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);

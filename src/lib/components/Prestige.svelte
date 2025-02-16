@@ -1,172 +1,128 @@
 <!-- src/lib/components/Prestige.svelte -->
 <script lang="ts">
-    import { prestigeStore } from '$lib/stores/prestige';
     import { gameStore } from '$lib/stores/game';
-    import { fade, scale } from 'svelte/transition';
+    import { prestigeStore } from '$lib/stores/prestige';
+    import { formatNumber } from '$lib/utils/format';
 
-    $: canPrestige = $prestigeStore.canPrestige;
-    $: level = $prestigeStore.level ?? 0;
-    $: multiplier = $prestigeStore.multiplier ?? 1;
-    $: nextMultiplier = $prestigeStore.nextPrestigeMultiplier ?? 1;
-    $: lifetimeClicks = $prestigeStore.lifetimeClicks ?? 0;
-    $: progress = Math.min(($gameStore.totalClicks ?? 0) / 1_000_000, 1);
-
-    function formatNumber(num: number): string {
-        if (!num) return '0';
-        if (num >= 1e12) return (num / 1e12).toFixed(1) + 'T';
-        if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
-        if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
-        if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
-        return Math.floor(num).toString();
-    }
-
-    async function handlePrestige() {
-        if (canPrestige) {
-            await prestigeStore.prestige();
-        }
+    function handlePrestige() {
+        prestigeStore.prestige();
     }
 </script>
 
-<div class="prestige">
-    <div class="header">
-        <h2>Prestige Level {level}</h2>
-        <div class="multiplier">
-            Current Multiplier: {multiplier.toFixed(1)}x
-        </div>
-    </div>
-
-    <div class="stats">
-        <div class="stat">
-            <span>Lifetime Clicks</span>
-            <span>{formatNumber(lifetimeClicks)}</span>
-        </div>
-        <div class="stat">
-            <span>Next Multiplier</span>
-            <span>{nextMultiplier.toFixed(1)}x</span>
-        </div>
-    </div>
-
-    <div class="progress-container">
-        <div class="progress-bar">
-            <div class="progress" style="width: {progress * 100}%"></div>
-        </div>
-        <div class="progress-text">
-            {formatNumber($gameStore.totalClicks ?? 0)} / 1,000,000
+<div class="prestige-container">
+    <div class="info-section">
+        <h2>Prestige</h2>
+        <p class="description">
+            Reset your progress to gain prestige points. Each prestige point gives a permanent 10% boost to clicks per second.
+        </p>
+        
+        <div class="stats">
+            <div class="stat">
+                <span class="label">Current Prestige Points</span>
+                <span class="value">{$prestigeStore.prestigePoints}</span>
+            </div>
+            <div class="stat">
+                <span class="label">Current Multiplier</span>
+                <span class="value">x{($prestigeStore.prestigePoints * 0.1 + 1).toFixed(1)}</span>
+            </div>
+            <div class="stat">
+                <span class="label">Next Prestige Points</span>
+                <span class="value">{formatNumber(Math.floor(Math.log10($gameStore.totalClicks)))}</span>
+            </div>
         </div>
     </div>
 
     <button 
         class="prestige-button"
-        class:disabled={!canPrestige}
         on:click={handlePrestige}
-        disabled={!canPrestige}
+        disabled={$gameStore.totalClicks < 1000}
     >
-        {#if canPrestige}
-            <span in:scale>Prestige Now!</span>
-        {:else}
-            <span>Need more clicks...</span>
-        {/if}
+        Prestige
     </button>
 </div>
 
 <style>
-    .prestige {
-        background: var(--bg-secondary);
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
+    .prestige-container {
+        background: var(--widget-bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
     }
 
-    .header {
+    .info-section {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
+        flex-direction: column;
+        gap: 1rem;
     }
 
     h2 {
         margin: 0;
-        font-size: 1.5rem;
-        color: var(--text-primary);
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-color);
     }
 
-    .multiplier {
-        font-size: 1.2rem;
-        color: var(--text-accent);
+    .description {
+        font-size: 0.875rem;
+        color: var(--text-color);
+        opacity: 0.8;
+        margin: 0;
+        line-height: 1.5;
     }
 
     .stats {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--bg-color);
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
     }
 
     .stat {
         display: flex;
-        flex-direction: column;
+        justify-content: space-between;
         align-items: center;
-        padding: 0.5rem;
-        background: var(--bg-tertiary);
-        border-radius: 4px;
     }
 
-    .stat span:first-child {
-        font-size: 0.9rem;
-        color: var(--text-secondary);
+    .label {
+        font-size: 0.875rem;
+        color: var(--text-color);
+        opacity: 0.8;
     }
 
-    .stat span:last-child {
-        font-size: 1.2rem;
-        color: var(--text-primary);
-        font-weight: bold;
-    }
-
-    .progress-container {
-        margin-bottom: 1rem;
-    }
-
-    .progress-bar {
-        width: 100%;
-        height: 20px;
-        background: var(--bg-tertiary);
-        border-radius: 10px;
-        overflow: hidden;
-        margin-bottom: 0.5rem;
-    }
-
-    .progress {
-        height: 100%;
-        background: var(--accent);
-        transition: width 0.3s ease;
-    }
-
-    .progress-text {
-        text-align: center;
-        font-size: 0.9rem;
-        color: var(--text-secondary);
+    .value {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-color);
     }
 
     .prestige-button {
-        width: 100%;
-        padding: 1rem;
-        font-size: 1.2rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
         border: none;
-        border-radius: 4px;
-        background: var(--accent);
+        background: var(--primary-color);
         color: white;
+        font-weight: 600;
         cursor: pointer;
         transition: all 0.2s ease;
+        text-align: center;
+        width: 100%;
     }
 
-    .prestige-button:hover:not(.disabled) {
-        transform: scale(1.02);
-        background: var(--accent-hover);
+    .prestige-button:hover:not(:disabled) {
+        background: var(--primary-hover);
+        transform: translateY(-1px);
     }
 
-    .prestige-button.disabled {
-        background: var(--bg-tertiary);
+    .prestige-button:disabled {
+        background: var(--border-color);
         cursor: not-allowed;
-        color: var(--text-secondary);
+        opacity: 0.7;
     }
 </style>

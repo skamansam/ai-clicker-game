@@ -7,17 +7,17 @@
     let activeTab: 'upgrades' | 'prestige' = 'upgrades';
 </script>
 
-<div class="shop-tabs">
-    <div class="tab-buttons">
+<div class="shop-container">
+    <div class="tabs">
         <button
-            class="tab-button"
+            class="tab"
             class:active={activeTab === 'upgrades'}
             on:click={() => activeTab = 'upgrades'}
         >
             Upgrades
         </button>
         <button
-            class="tab-button"
+            class="tab"
             class:active={activeTab === 'prestige'}
             on:click={() => activeTab = 'prestige'}
         >
@@ -25,7 +25,7 @@
         </button>
     </div>
 
-    <div class="tab-content">
+    <div class="content">
         {#if activeTab === 'upgrades'}
             <div class="tab-panel" transition:fade>
                 <UpgradeShop />
@@ -39,80 +39,53 @@
 </div>
 
 <style>
-    .shop-tabs {
-        background: white;
+    .shop-container {
+        background: var(--widget-bg-color);
+        border: 1px solid var(--border-color);
         border-radius: 0.5rem;
         overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         height: 100%;
         display: flex;
         flex-direction: column;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
     }
 
-    .tab-buttons {
+    .tabs {
         display: flex;
-        border-bottom: 1px solid var(--border-color, #e9ecef);
-        background: var(--gray-50);
-        flex-shrink: 0;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--widget-bg-color);
+        transition: border-color 0.3s ease;
     }
 
-    .tab-button {
-        flex: 1;
-        padding: 0.75rem;
+    .tab {
+        padding: 0.75rem 1rem;
         border: none;
         background: none;
-        color: var(--text-secondary);
-        font-weight: 500;
+        color: var(--text-color);
+        opacity: 0.7;
         cursor: pointer;
-        transition: all 0.2s;
+        font-weight: 500;
+        transition: all 0.2s ease;
     }
 
-    .tab-button:hover {
-        background: var(--gray-100);
-        color: var(--text-primary);
+    .tab:hover {
+        opacity: 0.9;
+        background: rgba(0, 0, 0, 0.05);
     }
 
-    .tab-button.active {
-        background: white;
-        color: var(--primary-600);
-        border-bottom: 2px solid var(--primary-600);
+    .tab.active {
+        opacity: 1;
+        color: var(--primary-color);
+        border-bottom: 2px solid var(--primary-color);
     }
 
-    .tab-content {
+    :global(.dark) .tab:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .content {
         flex: 1;
-        min-height: 0;
-        position: relative;
-    }
-
-    .tab-panel {
-        position: absolute;
-        inset: 0;
         overflow-y: auto;
         padding: 1rem;
-    }
-
-    /* Dark mode */
-    :global(.dark) .shop-tabs {
-        background: var(--gray-800);
-    }
-
-    :global(.dark) .tab-buttons {
-        background: var(--gray-900);
-        border-color: var(--gray-700);
-    }
-
-    :global(.dark) .tab-button {
-        color: var(--gray-400);
-    }
-
-    :global(.dark) .tab-button:hover {
-        background: var(--gray-800);
-        color: var(--gray-200);
-    }
-
-    :global(.dark) .tab-button.active {
-        background: var(--gray-800);
-        color: var(--primary-400);
-        border-color: var(--primary-400);
     }
 </style>

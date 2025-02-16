@@ -20,6 +20,7 @@
 <style>
     :global(html) {
         --bg-color: #f8f9fa;
+        --widget-bg-color: #ffffff;
         --text-color: #1f2937;
         --border-color: #e5e7eb;
         --primary-color: #3b82f6;
@@ -30,6 +31,7 @@
 
     :global(html.dark) {
         --bg-color: #1f2937;
+        --widget-bg-color: #111827;
         --text-color: #f3f4f6;
         --border-color: #374151;
         --primary-color: #60a5fa;
