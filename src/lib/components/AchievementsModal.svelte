@@ -1,13 +1,48 @@
 <!-- src/lib/components/AchievementsModal.svelte -->
 <script lang="ts">
-    import { achievementStore, filteredAchievements } from '$lib/stores/achievements';
-    import AchievementCategories from './AchievementCategories.svelte';
+    import { achievementStore, type AchievementCategory } from '$lib/stores/achievements';
     import { fade, scale } from 'svelte/transition';
     import { createEventDispatcher } from 'svelte';
 
     const dispatch = createEventDispatcher();
 
     export let show = false;
+    let selectedCategory: AchievementCategory | 'all' = 'all';
+
+    const categoryIcons: Record<AchievementCategory | 'all', string> = {
+        all: '🏆',
+        clicks: '🖱️',
+        speed: '⚡',
+        upgrades: '⬆️',
+        streaks: '🔥',
+        time: '⏰',
+        prestige: '✨',
+        combos: '🎯',
+        social: '💬',
+        dedication: '📅',
+        challenges: '⚔️'
+    };
+
+    const categoryNames: Record<AchievementCategory | 'all', string> = {
+        all: 'All Achievements',
+        clicks: 'Click Milestones',
+        speed: 'Speed Records',
+        upgrades: 'Upgrade Collection',
+        streaks: 'Click Streaks',
+        time: 'Time Played',
+        prestige: 'Prestige Ranks',
+        combos: 'Achievement Combos',
+        social: 'Social Status',
+        dedication: 'Daily Dedication',
+        challenges: 'Challenge Master'
+    };
+
+    $: categories = ['all', ...$achievementStore.categories];
+    $: filteredAchievements = selectedCategory === 'all' 
+        ? $achievementStore.achievements
+        : $achievementStore.achievements.filter(a => a.category === selectedCategory);
+    
+    $: unlockedMap = new Map($achievementStore.unlockedAchievements.map(a => [a.id, a]));
 
     function handleKeyDown(event: KeyboardEvent) {
         if (event.key === 'Escape') {
@@ -19,6 +54,23 @@
         if (event.target === event.currentTarget) {
             dispatch('close');
         }
+    }
+
+    function formatCategory(category: string): string {
+        return categoryNames[category as AchievementCategory] || category;
+    }
+
+    function getCategoryIcon(category: string): string {
+        return categoryIcons[category as AchievementCategory] || '🏆';
+    }
+
+    function isUnlocked(achievement: any): boolean {
+        return unlockedMap.has(achievement.id);
+    }
+
+    function getUnlockDate(achievement: any): Date | null {
+        const unlocked = unlockedMap.get(achievement.id);
+        return unlocked ? new Date(unlocked.unlockedAt) : null;
     }
 </script>
 
@@ -35,34 +87,70 @@
     >
         <div class="modal-header">
             <h2>Achievements</h2>
+            <div class="filters">
+                <select 
+                    class="category-select"
+                    bind:value={selectedCategory}
+                    aria-label="Filter by category"
+                >
+                    {#each categories as category}
+                        <option value={category}>
+                            {getCategoryIcon(category)} {formatCategory(category)}
+                        </option>
+                    {/each}
+                </select>
+            </div>
             <div class="progress">
-                {#if $achievementStore.achievements.length > 0}
-                    {$achievementStore.unlockedAchievements.length} / {$achievementStore.achievements.length}
-                {:else}
-                    Loading...
-                {/if}
+                <span class="count">{$achievementStore.unlockedAchievements.length}</span>
+                <span class="separator">/</span>
+                <span class="total">{$achievementStore.achievements.length}</span>
             </div>
             <button class="close-button" on:click={() => dispatch('close')}>×</button>
         </div>
 
         <div class="modal-body">
-            <AchievementCategories />
-            
-            <div class="achievements-grid">
-                {#each $filteredAchievements as achievement (achievement.id)}
-                    <div 
-                        class="achievement"
-                        class:unlocked={achievement.unlocked}
-                        transition:scale
-                    >
-                        <div class="icon">{achievement.icon || '🏆'}</div>
-                        <div class="info">
-                            <h3>{achievement.name}</h3>
-                            <p>{achievement.description}</p>
+            {#if $achievementStore.loading}
+                <div class="loading">Loading achievements...</div>
+            {:else if $achievementStore.error}
+                <div class="error">{$achievementStore.error}</div>
+            {:else if filteredAchievements.length === 0}
+                <div class="empty">
+                    <div class="empty-icon">{getCategoryIcon(selectedCategory)}</div>
+                    <p>No achievements found in {formatCategory(selectedCategory).toLowerCase()}.</p>
+                </div>
+            {:else}
+                <div class="achievements-grid">
+                    {#each filteredAchievements as achievement (achievement.id)}
+                        <div 
+                            class="achievement"
+                            class:unlocked={isUnlocked(achievement)}
+                            transition:scale|local
+                        >
+                            <div class="achievement-content">
+                                <div class="icon-wrapper">
+                                    <div class="icon">{achievement.icon || getCategoryIcon(achievement.category)}</div>
+                                    {#if isUnlocked(achievement)}
+                                        <div class="check-mark">✓</div>
+                                    {/if}
+                                </div>
+                                <div class="info">
+                                    <h3>{achievement.name}</h3>
+                                    <div class="category-tag">
+                                        <span class="tag-icon">{getCategoryIcon(achievement.category)}</span>
+                                        <span>{formatCategory(achievement.category)}</span>
+                                    </div>
+                                    <p>{achievement.description}</p>
+                                </div>
+                            </div>
+                            {#if isUnlocked(achievement)}
+                                <div class="unlock-date">
+                                    Unlocked {getUnlockDate(achievement)?.toLocaleDateString()}
+                                </div>
+                            {/if}
                         </div>
-                    </div>
-                {/each}
-            </div>
+                    {/each}
+                </div>
+            {/if}
         </div>
     </div>
 </div>
@@ -81,10 +169,10 @@
 
     .modal-content {
         background: white;
-        border-radius: 0.5rem;
+        border-radius: 0.75rem;
         width: 100%;
-        max-width: 800px;
-        max-height: 80vh;
+        max-width: 900px;
+        max-height: 85vh;
         display: flex;
         flex-direction: column;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -94,7 +182,7 @@
         display: flex;
         align-items: center;
         gap: 1rem;
-        padding: 1rem;
+        padding: 1.25rem;
         border-bottom: 1px solid var(--border-color, #e9ecef);
     }
 
@@ -105,13 +193,52 @@
         color: var(--text-primary);
     }
 
+    .filters {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .category-select {
+        padding: 0.375rem 2rem 0.375rem 0.75rem;
+        border: 1px solid var(--border-color, #e9ecef);
+        border-radius: 0.5rem;
+        background: white;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M8 10.5l-4-4h8l-4 4z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        min-width: 200px;
+    }
+
+    .category-select:hover {
+        border-color: var(--primary-400);
+    }
+
+    .category-select:focus {
+        outline: none;
+        border-color: var(--primary-500);
+        box-shadow: 0 0 0 2px var(--primary-100);
+    }
+
     .progress {
         margin-left: auto;
-        padding: 0.25rem 0.75rem;
+        padding: 0.375rem 1rem;
         background: var(--primary-100);
         color: var(--primary-700);
         border-radius: 1rem;
-        font-weight: 500;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .progress .separator {
+        opacity: 0.5;
     }
 
     .close-button {
@@ -130,44 +257,83 @@
     }
 
     .modal-body {
-        padding: 1rem;
+        padding: 1.25rem;
         overflow-y: auto;
+    }
+
+    .loading, .error, .empty {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .empty-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        opacity: 0.5;
+    }
+
+    .error {
+        color: var(--error-600);
     }
 
     .achievements-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         gap: 1rem;
-        padding: 1rem 0;
     }
 
     .achievement {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 1rem;
-        background: var(--gray-100);
-        border-radius: 0.5rem;
-        opacity: 0.7;
+        background: var(--gray-50);
+        border-radius: 0.75rem;
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
     }
 
-    .achievement.unlocked {
-        opacity: 1;
-        background: var(--primary-50);
+    .achievement-content {
+        padding: 1rem;
+        display: flex;
+        gap: 1rem;
+    }
+
+    .icon-wrapper {
+        position: relative;
+        width: 3rem;
+        height: 3rem;
+        flex-shrink: 0;
     }
 
     .icon {
-        font-size: 1.5rem;
-        width: 2.5rem;
-        height: 2.5rem;
+        width: 100%;
+        height: 100%;
         display: grid;
         place-items: center;
         background: white;
         border-radius: 0.5rem;
-        flex-shrink: 0;
+        font-size: 1.5rem;
+        border: 2px solid var(--gray-200);
+        transition: all 0.2s ease;
+    }
+
+    .check-mark {
+        position: absolute;
+        bottom: -0.375rem;
+        right: -0.375rem;
+        background: var(--success-500);
+        color: white;
+        width: 1.25rem;
+        height: 1.25rem;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 0.75rem;
+        font-weight: bold;
+        border: 2px solid white;
     }
 
     .info {
+        flex: 1;
         min-width: 0;
     }
 
@@ -178,10 +344,47 @@
         color: var(--text-primary);
     }
 
+    .category-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        color: var(--primary-600);
+        background: var(--primary-50);
+        padding: 0.25rem 0.5rem;
+        border-radius: 1rem;
+        margin: 0.25rem 0;
+    }
+
+    .tag-icon {
+        font-size: 1em;
+    }
+
     .info p {
         margin: 0.25rem 0 0;
         font-size: 0.875rem;
         color: var(--text-secondary);
+        line-height: 1.4;
+    }
+
+    .unlock-date {
+        font-size: 0.75rem;
+        color: var(--success-600);
+        padding: 0.5rem 1rem;
+        border-top: 1px solid var(--gray-200);
+        background: var(--success-50);
+        border-bottom-left-radius: 0.75rem;
+        border-bottom-right-radius: 0.75rem;
+    }
+
+    .achievement.unlocked {
+        background: white;
+        border-color: var(--success-200);
+    }
+
+    .achievement.unlocked .icon {
+        border-color: var(--success-200);
+        background: var(--success-50);
     }
 
     /* Dark mode */
@@ -193,20 +396,58 @@
         border-color: var(--gray-700);
     }
 
+    :global(.dark) .category-select {
+        background-color: var(--gray-700);
+        border-color: var(--gray-600);
+        color: var(--gray-100);
+    }
+
+    :global(.dark) .category-select:hover {
+        border-color: var(--primary-500);
+    }
+
+    :global(.dark) .category-select:focus {
+        border-color: var(--primary-400);
+        box-shadow: 0 0 0 2px var(--primary-900);
+    }
+
+    :global(.dark) .category-tag {
+        background: var(--primary-900);
+        color: var(--primary-300);
+    }
+
     :global(.dark) .progress {
         background: var(--primary-900);
         color: var(--primary-300);
     }
 
     :global(.dark) .achievement {
-        background: var(--gray-700);
+        background: var(--gray-900);
     }
 
     :global(.dark) .achievement.unlocked {
-        background: var(--primary-900);
+        background: var(--gray-800);
+        border-color: var(--success-900);
     }
 
     :global(.dark) .icon {
         background: var(--gray-800);
+        border-color: var(--gray-700);
+    }
+
+    :global(.dark) .achievement.unlocked .icon {
+        border-color: var(--success-700);
+        background: var(--success-900);
+    }
+
+    :global(.dark) .unlock-date {
+        color: var(--success-400);
+        background: var(--success-900);
+        border-color: var(--gray-700);
+    }
+
+    :global(.dark) .loading,
+    :global(.dark) .empty {
+        color: var(--gray-400);
     }
 </style>
