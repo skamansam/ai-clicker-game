@@ -17,10 +17,14 @@
     let showAchievements = false;
 
     onMount(async () => {
+        // Load achievements regardless of auth state
+        await achievementStore.loadAchievements();
+
+        // Load user-specific data if authenticated
         if ($authStore) {
             await Promise.all([
                 gameStore.loadGameState(),
-                achievementStore.loadAchievements(),
+                achievementStore.loadUserAchievements(),
                 prestigeStore.loadPrestigeData()
             ]);
         }

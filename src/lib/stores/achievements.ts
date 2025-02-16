@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, addDoc, updateDoc, onSnapshot, doc }
 import { gameStore } from './game';
 import { notificationStore } from './notifications';
 import { browser } from '$app/environment';
+import { achievements as achievementData } from '$lib/data/achievements';
 
 export type AchievementCategory = 'clicks' | 'speed' | 'upgrades' | 'streaks' | 'time' | 'prestige' | 'combos' | 'social' | 'dedication' | 'challenges';
 
@@ -24,7 +25,7 @@ const COMBO_MULTIPLIERS = [1, 1.2, 1.5, 2, 3, 5]; // Multipliers for combo chain
 
 function createAchievementStore() {
     const { subscribe, set, update } = writable<AchievementStore>({
-        achievements: [],
+        achievements: achievementData,
         unlockedAchievements: [],
         categories: [
             'clicks',
@@ -55,21 +56,20 @@ function createAchievementStore() {
         loadAchievements: async () => {
             if (!browser) return;
             
+            // No need to load achievements from Firestore anymore
+            // They're already loaded from local data
+            return;
+        },
+        loadUserAchievements: async () => {
+            if (!browser) return;
+            
             const user = auth.currentUser;
-            if (!user) return;
-
-            update(state => ({ ...state, loading: true, error: null }));
+            if (!user) {
+                update(state => ({ ...state, unlockedAchievements: [] }));
+                return;
+            }
 
             try {
-                // Load achievements from Firestore
-                const achievementsRef = collection(db, 'achievements');
-                const achievementsSnapshot = await getDocs(achievementsRef);
-                const achievements = achievementsSnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as Achievement[];
-
-                // Load user's unlocked achievements
                 const userAchievementsRef = collection(db, `users/${user.uid}/achievements`);
                 const userAchievementsSnapshot = await getDocs(userAchievementsRef);
                 const unlockedAchievements = userAchievementsSnapshot.docs.map(doc => ({
@@ -77,19 +77,9 @@ function createAchievementStore() {
                     ...doc.data()
                 })) as UserAchievement[];
 
-                update(state => ({
-                    ...state,
-                    achievements,
-                    unlockedAchievements,
-                    loading: false
-                }));
+                update(state => ({ ...state, unlockedAchievements }));
             } catch (error) {
-                console.error('Error loading achievements:', error);
-                update(state => ({
-                    ...state,
-                    loading: false,
-                    error: 'Failed to load achievements'
-                }));
+                console.error('Error loading user achievements:', error);
             }
         },
         checkAchievements: async () => {

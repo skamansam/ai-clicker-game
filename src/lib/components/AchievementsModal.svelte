@@ -1,13 +1,24 @@
 <!-- src/lib/components/AchievementsModal.svelte -->
 <script lang="ts">
     import { achievementStore, type AchievementCategory } from '$lib/stores/achievements';
+    import { authStore } from '$lib/stores/auth';
     import { fade, scale } from 'svelte/transition';
-    import { createEventDispatcher } from 'svelte';
+    import { createEventDispatcher, onMount } from 'svelte';
 
     const dispatch = createEventDispatcher();
 
     export let show = false;
     let selectedCategory: AchievementCategory | 'all' = 'all';
+
+    // Load base achievements on mount
+    onMount(() => {
+        achievementStore.loadAchievements();
+    });
+
+    // Load user achievements when auth state changes
+    $: if ($authStore) {
+        achievementStore.loadUserAchievements();
+    }
 
     const categoryIcons: Record<AchievementCategory | 'all', string> = {
         all: '🏆',
