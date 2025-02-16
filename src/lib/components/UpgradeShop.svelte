@@ -24,7 +24,7 @@
 <div class="upgrades-container">
     <h2 class="text-xl font-bold mb-2 text-center text-gray-900 dark:text-white">Upgrade Shop</h2>
     
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+    <div class="upgrades-grid">
         {#each upgrades as upgrade (upgrade.id)}
             {@const userUpgrade = $gameStore.upgrades[upgrade.id] || { 
                 count: 0, 
@@ -73,10 +73,20 @@
 
 <style>
     .upgrades-container {
-        width: 100%;
-        max-width: 1200px;
-        margin: 0 auto;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .upgrades-grid {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.5rem;
         padding: 0.5rem;
+        overflow-y: auto;
+        min-height: 0;
     }
 
     .upgrade-card {

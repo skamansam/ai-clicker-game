@@ -53,11 +53,12 @@
         display: flex;
         border-bottom: 1px solid var(--border-color, #e9ecef);
         background: var(--gray-50);
+        flex-shrink: 0;
     }
 
     .tab-button {
         flex: 1;
-        padding: 0.5rem;
+        padding: 0.75rem;
         border: none;
         background: none;
         color: var(--text-secondary);
@@ -79,7 +80,7 @@
 
     .tab-content {
         flex: 1;
-        overflow: hidden;
+        min-height: 0;
         position: relative;
     }
 
@@ -87,6 +88,7 @@
         position: absolute;
         inset: 0;
         overflow-y: auto;
+        padding: 1rem;
     }
 
     /* Dark mode */

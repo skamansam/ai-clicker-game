@@ -69,6 +69,7 @@
 <style>
     .game-container {
         min-height: 100vh;
+        height: 100vh;
         background: #f8f9fa;
         display: flex;
         flex-direction: column;
@@ -81,6 +82,7 @@
         padding: 1rem 2rem;
         background: white;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        flex-shrink: 0;
     }
 
     h1 {
@@ -100,6 +102,8 @@
         flex: 1;
         padding: 2rem;
         overflow: auto;
+        display: flex;
+        min-height: 0;
     }
 
     .game-layout {
@@ -108,13 +112,15 @@
         gap: 2rem;
         max-width: 1400px;
         margin: 0 auto;
-        height: 100%;
+        width: 100%;
+        min-height: 0;
     }
 
     .game-section {
         display: flex;
         flex-direction: column;
         gap: 2rem;
+        min-height: 0;
     }
 
     .clicker-section {
@@ -127,7 +133,8 @@
     .side-section {
         display: flex;
         flex-direction: column;
-        height: 100%;
+        min-height: 0;
+        flex: 1;
     }
 
     .achievements-section {
@@ -135,6 +142,7 @@
         padding: 1rem;
         border-top: 1px solid #e9ecef;
         box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1);
+        flex-shrink: 0;
     }
 
     @media (prefers-color-scheme: dark) {
