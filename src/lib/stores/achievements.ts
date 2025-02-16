@@ -85,19 +85,29 @@ function createAchievementStore() {
         resetProgress: async () => {
             if (!browser) return;
             
-            const user = auth.currentUser;
-            if (!user) return;
-
             try {
-                // Delete all user achievements
-                const userAchievementsRef = collection(db, `users/${user.uid}/achievements`);
-                const userAchievementsSnapshot = await getDocs(userAchievementsRef);
-                
-                const deletePromises = userAchievementsSnapshot.docs.map(doc => 
-                    deleteDoc(doc.ref)
-                );
-                
-                await Promise.all(deletePromises);
+                // Stop all timers and auto-clickers
+                if (comboTimeout) {
+                    clearTimeout(comboTimeout);
+                    comboTimeout = null;
+                }
+
+                // Stop game timers and auto-clickers
+                // This will also reset game stats
+                gameStore.stopAllTimers();
+
+                // Delete user achievements if logged in
+                const user = auth.currentUser;
+                if (user) {
+                    const userAchievementsRef = collection(db, `users/${user.uid}/achievements`);
+                    const userAchievementsSnapshot = await getDocs(userAchievementsRef);
+                    
+                    const deletePromises = userAchievementsSnapshot.docs.map(doc => 
+                        deleteDoc(doc.ref)
+                    );
+                    
+                    await Promise.all(deletePromises);
+                }
 
                 // Reset store state - make sure to keep base achievements but clear everything else
                 update(state => ({
@@ -109,28 +119,22 @@ function createAchievementStore() {
                     error: null
                 }));
 
-                // Also reset other achievement-related stores
-                gameStore.update(state => ({
-                    ...state,
-                    stats: {
-                        ...state.stats,
-                        achievementsUnlocked: 0,
-                        lastAchievement: null,
-                        currentStreak: 0,
-                        longestStreak: 0
-                    }
-                }));
-
                 // Show success notification
-                notificationStore.show({
-                    type: 'success',
-                    message: 'Achievement progress has been reset'
+                notificationStore.notify({
+                    type: 'challenge',
+                    title: 'Reset Complete',
+                    message: 'Achievement progress has been reset',
+                    icon: '🔄',
+                    color: '#10b981'
                 });
             } catch (error) {
                 console.error('Error resetting achievements:', error);
-                notificationStore.show({
-                    type: 'error',
-                    message: 'Failed to reset achievement progress'
+                notificationStore.notify({
+                    type: 'challenge',
+                    title: 'Reset Failed',
+                    message: 'Failed to reset achievement progress',
+                    icon: '⚠️',
+                    color: '#ef4444'
                 });
             }
         },

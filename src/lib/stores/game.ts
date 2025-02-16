@@ -214,6 +214,41 @@ function createGameStore() {
             if (!browser) return;
             await syncWithFirebase();
         },
+        stopAllTimers: () => {
+            // Stop all auto-click timers
+            if (autoClickInterval) {
+                clearInterval(autoClickInterval);
+                autoClickInterval = null;
+            }
+
+            // Stop any other game timers
+            if (saveInterval) {
+                clearInterval(saveInterval);
+                saveInterval = null;
+            }
+
+            // Stop sync interval
+            if (syncInterval) {
+                clearInterval(syncInterval);
+                syncInterval = null;
+            }
+
+            // Reset game state
+            update(state => ({
+                ...state,
+                clicks: 0,
+                clicksPerSecond: 0,
+                totalClicks: 0,
+                upgrades: {},
+                lastSynced: null,
+                dirty: true
+            }));
+
+            // Save to local storage
+            if (browser) {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(get(gameStore)));
+            }
+        },
         destroy: () => {
             if (browser) {
                 clearInterval(saveInterval);
