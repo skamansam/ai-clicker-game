@@ -8,6 +8,7 @@ import { defaultUpgrades } from '$lib/data/upgrades';
 interface GameStore {
     clicks: number;
     clicksPerSecond: number;
+    manualClicksPerSecond: number;
     totalClicks: number;
     upgrades: { [id: string]: UserUpgrade };
     lastSynced: Date | null;
@@ -16,12 +17,16 @@ interface GameStore {
 
 const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
 const LOCAL_STORAGE_KEY = 'gameState';
+const MANUAL_CLICKS_WINDOW = 5000; // 5 second window for manual clicks
 
 function createGameStore() {
+    let recentClicks: number[] = [];
+
     // Initialize with default values or stored values
     const initialState: GameStore = browser ? loadFromLocalStorage() : {
         clicks: 0,
         clicksPerSecond: 0,
+        manualClicksPerSecond: 0,
         totalClicks: 0,
         upgrades: {},
         lastSynced: null,
@@ -33,6 +38,7 @@ function createGameStore() {
     let saveInterval: NodeJS.Timeout;
     let autoClickInterval: NodeJS.Timeout;
     let syncInterval: NodeJS.Timeout;
+    let manualClicksInterval: NodeJS.Timeout;
 
     function loadFromLocalStorage(): GameStore {
         try {
@@ -41,6 +47,7 @@ function createGameStore() {
                 const parsed = JSON.parse(stored);
                 return {
                     ...parsed,
+                    manualClicksPerSecond: 0,
                     lastSynced: parsed.lastSynced ? new Date(parsed.lastSynced) : null
                 };
             }
@@ -50,6 +57,7 @@ function createGameStore() {
         return {
             clicks: 0,
             clicksPerSecond: 0,
+            manualClicksPerSecond: 0,
             totalClicks: 0,
             upgrades: {},
             lastSynced: null,
@@ -100,8 +108,9 @@ function createGameStore() {
         // Auto-click interval
         autoClickInterval = setInterval(() => {
             update(state => {
-                const newClicks = state.clicks + state.clicksPerSecond;
-                const newTotalClicks = state.totalClicks + state.clicksPerSecond;
+                const autoClicksPerSecond = state.clicksPerSecond - state.manualClicksPerSecond;
+                const newClicks = state.clicks + autoClicksPerSecond;
+                const newTotalClicks = state.totalClicks + autoClicksPerSecond;
                 return {
                     ...state,
                     clicks: newClicks,
@@ -110,6 +119,20 @@ function createGameStore() {
                 };
             });
         }, 1000);
+
+        // Update manual clicks per second
+        manualClicksInterval = setInterval(() => {
+            const now = Date.now();
+            recentClicks = recentClicks.filter(time => now - time < MANUAL_CLICKS_WINDOW);
+            const manualClicksPerSecond = recentClicks.length / (MANUAL_CLICKS_WINDOW / 1000);
+            
+            update(state => ({
+                ...state,
+                manualClicksPerSecond,
+                clicksPerSecond: manualClicksPerSecond + Object.values(state.upgrades).reduce((sum, upgrade) => 
+                    sum + (upgrade.clicksPerSecond * upgrade.count), 0)
+            }));
+        }, 100);
 
         // Sync with Firebase every 5 minutes if user is logged in and state is dirty
         syncInterval = setInterval(() => {
@@ -124,6 +147,8 @@ function createGameStore() {
         subscribe,
         click: () => {
             if (!browser) return;
+            
+            recentClicks.push(Date.now());
             
             update(state => ({
                 ...state,
@@ -233,11 +258,18 @@ function createGameStore() {
                 syncInterval = null;
             }
 
+            // Stop manual clicks interval
+            if (manualClicksInterval) {
+                clearInterval(manualClicksInterval);
+                manualClicksInterval = null;
+            }
+
             // Reset game state
             update(state => ({
                 ...state,
                 clicks: 0,
                 clicksPerSecond: 0,
+                manualClicksPerSecond: 0,
                 totalClicks: 0,
                 upgrades: {},
                 lastSynced: null,
@@ -254,6 +286,7 @@ function createGameStore() {
                 clearInterval(saveInterval);
                 clearInterval(autoClickInterval);
                 clearInterval(syncInterval);
+                clearInterval(manualClicksInterval);
             }
         }
     };
