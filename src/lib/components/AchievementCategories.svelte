@@ -32,10 +32,11 @@
     };
 
     $: selectedCategory = $achievementStore.selectedCategory;
+    $: categories = $achievementStore.categories || [];
 </script>
 
 <div class="categories" transition:slide>
-    {#each ['all', ...achievementStore.categories] as category}
+    {#each ['all', ...categories] as category}
         <button
             class="category-btn"
             class:active={selectedCategory === category}
@@ -50,11 +51,8 @@
 <style>
     .categories {
         display: flex;
+        flex-wrap: wrap;
         gap: 0.5rem;
-        overflow-x: auto;
-        padding: 0.5rem;
-        background: #f8f9fa;
-        border-radius: 0.5rem;
         margin-bottom: 1rem;
     }
 
@@ -64,64 +62,46 @@
         gap: 0.5rem;
         padding: 0.5rem 1rem;
         border: none;
-        border-radius: 0.25rem;
-        background: white;
-        color: #495057;
-        font-size: 0.9rem;
+        border-radius: 4px;
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
         cursor: pointer;
-        transition: all 0.2s;
-        white-space: nowrap;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
     }
 
     .category-btn:hover {
-        background: #e9ecef;
-        transform: translateY(-1px);
+        background: var(--bg-quaternary);
     }
 
     .category-btn.active {
-        background: #339af0;
+        background: var(--accent);
         color: white;
     }
 
     .icon {
-        font-size: 1.1rem;
+        font-size: 1.2rem;
     }
 
-    /* Scrollbar styling */
-    .categories::-webkit-scrollbar {
-        height: 6px;
-    }
-
-    .categories::-webkit-scrollbar-track {
-        background: #f1f3f5;
-        border-radius: 3px;
-    }
-
-    .categories::-webkit-scrollbar-thumb {
-        background: #adb5bd;
-        border-radius: 3px;
-    }
-
-    .categories::-webkit-scrollbar-thumb:hover {
-        background: #868e96;
+    .name {
+        font-size: 0.9rem;
     }
 
     @media (max-width: 768px) {
         .categories {
-            padding: 0.5rem;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding-bottom: 0.5rem;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
 
-        .category-btn {
-            padding: 0.5rem;
-        }
-
-        .name {
+        .categories::-webkit-scrollbar {
             display: none;
         }
 
-        .icon {
-            font-size: 1.2rem;
+        .category-btn {
+            white-space: nowrap;
         }
     }
 </style>

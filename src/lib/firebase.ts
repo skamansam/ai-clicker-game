@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
+import { browser } from '$app/environment';
 
 // Your web app's Firebase configuration
 // You'll need to replace these with your Firebase project's actual config values
@@ -24,8 +25,8 @@ export const auth = getAuth(app);
 // Initialize Cloud Firestore and get a reference to the service
 export const db = getFirestore(app);
 
-// Initialize Firebase Analytics and get a reference to the service
-export const analytics = getAnalytics(app);
+// Initialize Firebase Analytics only in browser environment
+export const analytics = browser ? getAnalytics(app) : null;
 
 // Connect to emulators if in development mode
 if (import.meta.env.DEV) {

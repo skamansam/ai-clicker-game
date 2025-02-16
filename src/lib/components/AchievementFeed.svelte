@@ -1,6 +1,7 @@
 <!-- src/lib/components/AchievementFeed.svelte -->
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
+    import { browser } from '$app/environment';
     import { db, auth } from '$lib/firebase';
     import { collection, query, where, orderBy, limit, onSnapshot, getDocs } from 'firebase/firestore';
     import type { Achievement } from '$lib/types';
@@ -23,6 +24,8 @@
     let unsubscribe: () => void;
 
     onMount(async () => {
+        if (!browser) return;
+        
         const user = auth.currentUser;
         if (!user) return;
 

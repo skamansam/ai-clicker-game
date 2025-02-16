@@ -5,13 +5,31 @@
     import AchievementFilters from './AchievementFilters.svelte';
     import AchievementSuggestions from './AchievementSuggestions.svelte';
     import AchievementSocial from './AchievementSocial.svelte';
+    import { fade, slide } from 'svelte/transition';
+    import { onMount } from 'svelte';
+    import { browser } from '$app/environment';
 
     let showFilters = false;
     let selectedAchievement = null;
+    let loading = true;
+    let error: string | null = null;
 
-    $: filteredAchievements = $achievementStore.achievements.filter(a => {
+    $: achievements = $achievementStore.achievements.filter(a => {
         if ($achievementStore.selectedCategory === 'all') return true;
         return achievementStore.getAchievementsByCategory($achievementStore.selectedCategory).includes(a);
+    });
+
+    onMount(async () => {
+        if (!browser) return;
+        
+        try {
+            await achievementStore.loadAchievements();
+        } catch (err) {
+            error = 'Failed to load achievements';
+            console.error(err);
+        } finally {
+            loading = false;
+        }
     });
 </script>
 
@@ -29,40 +47,47 @@
         </div>
     </div>
 
-    <AchievementCategories />
-    
-    <AchievementFilters
-        achievements={filteredAchievements}
-        bind:showAdvanced={showFilters}
-    />
+    {#if loading}
+        <div class="loading" transition:fade>Loading achievements...</div>
+    {:else if error}
+        <div class="error" transition:fade>{error}</div>
+    {:else}
+        <AchievementCategories />
+        
+        <AchievementFilters
+            achievements={$achievementStore.achievements}
+            bind:showAdvanced={showFilters}
+        />
 
-    <AchievementSuggestions {achievements} />
+        <AchievementSuggestions {achievements} />
 
-    <div class="achievements-grid">
-        {#each filteredAchievements as achievement}
-            <div
-                class="achievement-card"
-                class:unlocked={$achievementStore.unlockedAchievements.some(
-                    ua => ua.achievement_id === achievement.id
-                )}
-                on:click={() => selectedAchievement = achievement}
-            >
-                <div class="tier-badge" style="background: {achievement.tier_color}">
-                    {achievement.tier.charAt(0).toUpperCase()}
-                </div>
-                <h3>{achievement.name}</h3>
-                <p>{achievement.description}</p>
-                <div class="reward">
-                    {achievement.reward_multiplier}x Multiplier
-                </div>
-                {#if achievement.tier_effect}
-                    <div class="effect">
-                        {achievement.tier_effect} Effect
+        <div class="achievements-grid">
+            {#each achievements as achievement}
+                <div 
+                    class="achievement-card"
+                    class:unlocked={$achievementStore.unlockedAchievements.some(
+                        ua => ua.achievement_id === achievement.id
+                    )}
+                    on:click={() => selectedAchievement = achievement}
+                    transition:slide
+                >
+                    <div class="tier-badge" style="background: {achievement.tier_color}">
+                        {achievement.tier.charAt(0).toUpperCase()}
                     </div>
-                {/if}
-            </div>
-        {/each}
-    </div>
+                    <h3>{achievement.name}</h3>
+                    <p>{achievement.description}</p>
+                    <div class="reward">
+                        {achievement.reward_multiplier}x Multiplier
+                    </div>
+                    {#if achievement.tier_effect}
+                        <div class="effect">
+                            {achievement.tier_effect} Effect
+                        </div>
+                    {/if}
+                </div>
+            {/each}
+        </div>
+    {/if}
 
     {#if selectedAchievement}
         <div class="modal" on:click|self={() => selectedAchievement = null}>

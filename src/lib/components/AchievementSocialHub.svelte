@@ -3,6 +3,7 @@
     import { onMount } from 'svelte';
     import { fade, slide } from 'svelte/transition';
     import { formatDistance } from 'date-fns';
+    import { browser } from '$app/environment';
     import { db, auth } from '$lib/firebase';
     import { collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, serverTimestamp, doc, increment } from 'firebase/firestore';
     import { achievementSocialStore } from '$lib/stores/achievement-social';
@@ -55,6 +56,8 @@
     let loading = true;
 
     onMount(async () => {
+        if (!browser) return;
+        
         const user = auth.currentUser;
         if (!user) return;
 
@@ -122,6 +125,8 @@
     }
 
     async function joinGuild(guildId: string) {
+        if (!browser) return;
+        
         const user = auth.currentUser;
         if (!user) return;
 
@@ -174,6 +179,8 @@
     }
 
     async function joinEvent(eventId: string) {
+        if (!browser) return;
+        
         const user = auth.currentUser;
         if (!user) return;
 
@@ -207,6 +214,8 @@
     }
 
     async function sendFriendInvite(userId: string) {
+        if (!browser) return;
+        
         const user = auth.currentUser;
         if (!user) return;
 

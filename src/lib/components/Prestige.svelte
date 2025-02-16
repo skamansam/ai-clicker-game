@@ -5,13 +5,14 @@
     import { fade, scale } from 'svelte/transition';
 
     $: canPrestige = $prestigeStore.canPrestige;
-    $: level = $prestigeStore.level;
-    $: multiplier = $prestigeStore.multiplier;
-    $: nextMultiplier = $prestigeStore.nextPrestigeMultiplier;
-    $: lifetimeClicks = $prestigeStore.lifetimeClicks;
-    $: progress = Math.min($gameStore.totalClicks / 1_000_000, 1);
+    $: level = $prestigeStore.level ?? 0;
+    $: multiplier = $prestigeStore.multiplier ?? 1;
+    $: nextMultiplier = $prestigeStore.nextPrestigeMultiplier ?? 1;
+    $: lifetimeClicks = $prestigeStore.lifetimeClicks ?? 0;
+    $: progress = Math.min(($gameStore.totalClicks ?? 0) / 1_000_000, 1);
 
     function formatNumber(num: number): string {
+        if (!num) return '0';
         if (num >= 1e12) return (num / 1e12).toFixed(1) + 'T';
         if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
         if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
@@ -50,29 +51,30 @@
             <div class="progress" style="width: {progress * 100}%"></div>
         </div>
         <div class="progress-text">
-            {formatNumber($gameStore.totalClicks)} / 1M clicks
+            {formatNumber($gameStore.totalClicks ?? 0)} / 1,000,000
         </div>
     </div>
 
-    <button
+    <button 
         class="prestige-button"
-        disabled={!canPrestige}
+        class:disabled={!canPrestige}
         on:click={handlePrestige}
+        disabled={!canPrestige}
     >
         {#if canPrestige}
             <span in:scale>Prestige Now!</span>
         {:else}
-            <span>Need 1M clicks to prestige</span>
+            <span>Need more clicks...</span>
         {/if}
     </button>
 </div>
 
 <style>
     .prestige {
-        background: white;
+        background: var(--bg-secondary);
+        border-radius: 8px;
         padding: 1rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin: 1rem 0;
     }
 
     .header {
@@ -85,42 +87,39 @@
     h2 {
         margin: 0;
         font-size: 1.5rem;
-        background: linear-gradient(135deg, #845ec2, #d65db1);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: var(--text-primary);
     }
 
     .multiplier {
-        font-weight: bold;
-        color: #845ec2;
+        font-size: 1.2rem;
+        color: var(--text-accent);
     }
 
     .stats {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
         margin-bottom: 1rem;
     }
 
     .stat {
-        background: #f8f9fa;
-        padding: 0.75rem;
-        border-radius: 0.375rem;
         display: flex;
         flex-direction: column;
         align-items: center;
-        text-align: center;
+        padding: 0.5rem;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
     }
 
     .stat span:first-child {
-        font-size: 0.8rem;
-        color: #868e96;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
     }
 
     .stat span:last-child {
-        font-size: 1.1rem;
+        font-size: 1.2rem;
+        color: var(--text-primary);
         font-weight: bold;
-        color: #495057;
     }
 
     .progress-container {
@@ -129,45 +128,45 @@
 
     .progress-bar {
         width: 100%;
-        height: 8px;
-        background: #e9ecef;
-        border-radius: 4px;
+        height: 20px;
+        background: var(--bg-tertiary);
+        border-radius: 10px;
         overflow: hidden;
         margin-bottom: 0.5rem;
     }
 
     .progress {
         height: 100%;
-        background: linear-gradient(90deg, #845ec2, #d65db1);
+        background: var(--accent);
         transition: width 0.3s ease;
     }
 
     .progress-text {
         text-align: center;
         font-size: 0.9rem;
-        color: #868e96;
+        color: var(--text-secondary);
     }
 
     .prestige-button {
         width: 100%;
         padding: 1rem;
+        font-size: 1.2rem;
         border: none;
-        border-radius: 0.5rem;
-        font-size: 1.1rem;
-        font-weight: bold;
+        border-radius: 4px;
+        background: var(--accent);
         color: white;
-        background: linear-gradient(135deg, #845ec2, #d65db1);
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.2s ease;
     }
 
-    .prestige-button:disabled {
-        background: #dee2e6;
+    .prestige-button:hover:not(.disabled) {
+        transform: scale(1.02);
+        background: var(--accent-hover);
+    }
+
+    .prestige-button.disabled {
+        background: var(--bg-tertiary);
         cursor: not-allowed;
-    }
-
-    .prestige-button:not(:disabled):hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        color: var(--text-secondary);
     }
 </style>

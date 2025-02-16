@@ -1,6 +1,7 @@
 <!-- src/lib/components/TierEffect.svelte -->
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
+    import { browser } from '$app/environment';
     import type { TierEffect } from '$lib/types';
 
     export let effect: TierEffect;
@@ -20,25 +21,32 @@
     }> = [];
 
     onMount(() => {
-        if (!canvas) return;
+        if (!browser || !canvas) return;
+        
         ctx = canvas.getContext('2d')!;
         
         // Set canvas size
         const resize = () => {
+            if (!browser || !canvas) return;
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
         };
+        
         resize();
-        window.addEventListener('resize', resize);
+        if (browser) {
+            window.addEventListener('resize', resize);
+        }
 
         if (effect.type === 'particles') {
             startParticleAnimation();
         }
 
         return () => {
-            window.removeEventListener('resize', resize);
-            if (animationFrame) {
-                cancelAnimationFrame(animationFrame);
+            if (browser) {
+                window.removeEventListener('resize', resize);
+                if (animationFrame) {
+                    cancelAnimationFrame(animationFrame);
+                }
             }
         };
     });

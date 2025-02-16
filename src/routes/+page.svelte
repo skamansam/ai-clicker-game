@@ -1,6 +1,6 @@
 <!-- src/routes/+page.svelte -->
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import { gameStore } from '$lib/stores/game';
     import { authStore } from '$lib/stores/auth';
     import { achievementStore } from '$lib/stores/achievements';
@@ -10,6 +10,9 @@
     import Stats from '$lib/components/Stats.svelte';
     import Achievements from '$lib/components/Achievements.svelte';
     import Prestige from '$lib/components/Prestige.svelte';
+    import { browser } from '$app/environment';
+
+    let checkInterval: NodeJS.Timeout;
 
     onMount(async () => {
         if ($authStore) {
@@ -19,14 +22,22 @@
                 prestigeStore.loadPrestige()
             ]);
         }
+
+        // Only set up the interval in the browser
+        if (browser) {
+            checkInterval = setInterval(() => {
+                if ($authStore && achievementStore.checkAchievements) {
+                    achievementStore.checkAchievements();
+                }
+            }, 1000);
+        }
     });
 
-    // Check achievements every second
-    setInterval(() => {
-        if ($authStore) {
-            achievementStore.checkAchievements();
+    onDestroy(() => {
+        if (checkInterval) {
+            clearInterval(checkInterval);
         }
-    }, 1000);
+    });
 </script>
 
 <div class="game-container">
@@ -50,9 +61,9 @@
                 <div class="shop-section">
                     <UpgradeShop />
                 </div>
-                <div class="achievements-section">
-                    <Achievements />
-                </div>
+            </div>
+            <div class="achievements-section">
+                <Achievements />
             </div>
         </div>
     </main>

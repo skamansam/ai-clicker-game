@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import type { User } from 'firebase/auth';
+import { browser } from '$app/environment';
 import { auth } from '$lib/firebase';
 import { 
     signInWithEmailAndPassword,
@@ -21,18 +22,22 @@ function createAuthStore() {
         error: null
     });
 
-    // Listen for auth state changes
-    onAuthStateChanged(auth, (user) => {
-        set({
-            user,
-            loading: false,
-            error: null
+    if (browser) {
+        // Listen for auth state changes
+        onAuthStateChanged(auth, (user) => {
+            set({
+                user,
+                loading: false,
+                error: null
+            });
         });
-    });
+    }
 
     return {
         subscribe,
         signIn: async (email: string, password: string) => {
+            if (!browser) return;
+            
             try {
                 update(state => ({ ...state, loading: true, error: null }));
                 await signInWithEmailAndPassword(auth, email, password);
@@ -44,6 +49,8 @@ function createAuthStore() {
             }
         },
         signUp: async (email: string, password: string) => {
+            if (!browser) return;
+            
             try {
                 update(state => ({ ...state, loading: true, error: null }));
                 await createUserWithEmailAndPassword(auth, email, password);
@@ -55,6 +62,8 @@ function createAuthStore() {
             }
         },
         signOut: async () => {
+            if (!browser) return;
+            
             try {
                 update(state => ({ ...state, loading: true, error: null }));
                 await firebaseSignOut(auth);

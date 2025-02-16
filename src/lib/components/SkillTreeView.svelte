@@ -1,6 +1,7 @@
 <!-- src/lib/components/SkillTreeView.svelte -->
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { browser } from '$app/environment';
     import { progressionStore } from '$lib/stores/achievement-progression';
     import type { SkillNode } from '$lib/types';
 
@@ -10,7 +11,7 @@
     let ctx: CanvasRenderingContext2D;
     let width: number;
     let height: number;
-    let scale = window.devicePixelRatio || 1;
+    let scale = browser ? window.devicePixelRatio || 1 : 1;
     let hoveredNode: SkillNode | null = null;
     let selectedNode: SkillNode | null = null;
     let dragging = false;
@@ -23,13 +24,23 @@
     $: unlockedNodes = new Set(tree?.unlockedNodes || []);
 
     onMount(() => {
+        if (!browser) return;
+
         initCanvas();
         window.addEventListener('resize', initCanvas);
-        return () => window.removeEventListener('resize', initCanvas);
+        return () => {
+            if (browser) {
+                window.removeEventListener('resize', initCanvas);
+            }
+        };
     });
 
     function initCanvas() {
+        if (!browser || !canvas) return;
+
         const container = canvas.parentElement;
+        if (!container) return;
+
         width = container.clientWidth;
         height = container.clientHeight;
         canvas.width = width * scale;
@@ -143,6 +154,8 @@
     }
 
     function handleMouseMove(event: MouseEvent) {
+        if (!browser) return;
+
         const rect = canvas.getBoundingClientRect();
         const x = (event.clientX - rect.left) / width;
         const y = (event.clientY - rect.top) / height;
@@ -168,6 +181,8 @@
     }
 
     function handleMouseDown(event: MouseEvent) {
+        if (!browser) return;
+
         const rect = canvas.getBoundingClientRect();
         dragStart = {
             x: (event.clientX - rect.left) / width,
@@ -183,10 +198,14 @@
     }
 
     function handleMouseUp() {
+        if (!browser) return;
+
         dragging = false;
     }
 
     function handleWheel(event: WheelEvent) {
+        if (!browser) return;
+
         event.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const x = (event.clientX - rect.left) / width;

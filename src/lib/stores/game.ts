@@ -1,5 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import type { GameState, Upgrade, UserUpgrade } from '$lib/types';
+import { browser } from '$app/environment';
 import { db, auth } from '$lib/firebase';
 import { collection, doc, setDoc, getDoc, updateDoc, increment, query, where, getDocs } from 'firebase/firestore';
 
@@ -23,9 +24,34 @@ function createGameStore() {
     let saveInterval: NodeJS.Timeout;
     let autoClickInterval: NodeJS.Timeout;
 
-    return {
+    if (browser) {
+        // Initialize intervals only in browser environment
+        saveInterval = setInterval(async () => {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            const gameStateRef = doc(db, 'game_states', user.uid);
+            await setDoc(gameStateRef, {
+                clicks: store.clicks,
+                totalClicks: store.totalClicks,
+                lastSaved: new Date()
+            }, { merge: true });
+        }, 60000); // Save every minute
+
+        autoClickInterval = setInterval(() => {
+            update(state => ({
+                ...state,
+                clicks: state.clicks + state.clicksPerSecond,
+                totalClicks: state.totalClicks + state.clicksPerSecond
+            }));
+        }, 1000);
+    }
+
+    const store = {
         subscribe,
         click: () => {
+            if (!browser) return;
+            
             update(state => ({
                 ...state,
                 clicks: state.clicks + 1,
@@ -33,6 +59,8 @@ function createGameStore() {
             }));
         },
         purchaseUpgrade: async (upgrade: Upgrade) => {
+            if (!browser) return;
+            
             const user = auth.currentUser;
             if (!user) return;
 
@@ -52,101 +80,60 @@ function createGameStore() {
                         userId: user.uid,
                         upgradeId: upgrade.id,
                         quantity: 1,
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
+                        purchasedAt: new Date()
                     });
                 }
 
-                update(state => ({
-                    ...state,
-                    clicks: state.clicks - upgrade.cost,
-                    clicksPerSecond: state.clicksPerSecond + upgrade.clicksPerSecond,
-                    upgrades: [...state.upgrades, { ...upgrade, quantity: 1 }]
-                }));
+                // Refresh upgrades
+                await store.loadUpgrades();
             } catch (error) {
                 console.error('Error purchasing upgrade:', error);
                 throw error;
             }
         },
-        loadGameState: async () => {
+        loadUpgrades: async () => {
+            if (!browser) return;
+            
             const user = auth.currentUser;
             if (!user) return;
 
-            // Load game state
-            const gameStateRef = doc(db, 'game_states', user.uid);
-            const gameStateDoc = await getDoc(gameStateRef);
-            const gameState = gameStateDoc.data() as GameState;
+            try {
+                // Load user upgrades
+                const userUpgradesRef = collection(db, 'user_upgrades');
+                const userUpgradesQuery = query(userUpgradesRef, where('userId', '==', user.uid));
+                const userUpgradesSnapshot = await getDocs(userUpgradesQuery);
+                const userUpgrades = userUpgradesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
 
-            // Load user upgrades
-            const userUpgradesRef = collection(db, 'user_upgrades');
-            const userUpgradesQuery = query(userUpgradesRef, where('userId', '==', user.uid));
-            const userUpgradesDocs = await getDocs(userUpgradesQuery);
-            const userUpgrades = userUpgradesDocs.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                // Load available upgrades
+                const upgradesRef = collection(db, 'upgrades');
+                const upgradesSnapshot = await getDocs(upgradesRef);
+                const availableUpgrades = upgradesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
 
-            // Load available upgrades
-            const availableUpgradesRef = collection(db, 'upgrades');
-            const availableUpgradesDocs = await getDocs(availableUpgradesRef);
-            const availableUpgrades = availableUpgradesDocs.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-
-            // Calculate clicks per second from upgrades
-            const clicksPerSecond = userUpgrades.reduce((total, upgrade) => {
-                return total + (upgrade.upgrade.clicksPerSecond ?? 0) * upgrade.quantity;
-            }, 0);
-
-            set({
-                clicks: gameState.clicks ?? 0,
-                clicksPerSecond,
-                totalClicks: gameState.totalClicks ?? 0,
-                upgrades: userUpgrades,
-                availableUpgrades: availableUpgrades
-            });
-
-            // Start auto-clicking based on upgrades
-            startAutoClick();
-            // Start auto-saving
-            startAutoSave();
+                update(state => ({
+                    ...state,
+                    upgrades: userUpgrades,
+                    availableUpgrades
+                }));
+            } catch (error) {
+                console.error('Error loading upgrades:', error);
+                throw error;
+            }
         },
-        reset: () => {
-            stopIntervals();
-            set({
-                clicks: 0,
-                clicksPerSecond: 0,
-                totalClicks: 0,
-                upgrades: [],
-                availableUpgrades: []
-            });
+        destroy: () => {
+            if (browser) {
+                clearInterval(saveInterval);
+                clearInterval(autoClickInterval);
+            }
         }
     };
 
-    function startAutoClick() {
-        stopIntervals();
-        autoClickInterval = setInterval(() => {
-            update(state => ({
-                ...state,
-                clicks: state.clicks + state.clicksPerSecond / 10,
-                totalClicks: state.totalClicks + state.clicksPerSecond / 10
-            }));
-        }, 100); // Update every 100ms for smoother animation
-    }
-
-    function startAutoSave() {
-        saveInterval = setInterval(async () => {
-            const user = auth.currentUser;
-            if (!user) return;
-
-            const state = get(gameStore);
-            await setDoc(doc(db, 'game_states', user.uid), {
-                clicks: Math.floor(state.clicks),
-                clicksPerSecond: state.clicksPerSecond,
-                totalClicks: Math.floor(state.totalClicks)
-            });
-        }, 5000); // Save every 5 seconds
-    }
-
-    function stopIntervals() {
-        if (autoClickInterval) clearInterval(autoClickInterval);
-        if (saveInterval) clearInterval(saveInterval);
-    }
+    return store;
 }
 
 export const gameStore = createGameStore();

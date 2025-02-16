@@ -3,6 +3,7 @@
     import { onMount, onDestroy } from 'svelte';
     import { tweened } from 'svelte/motion';
     import { cubicOut } from 'svelte/easing';
+    import { browser } from '$app/environment';
     import { achievementComboStore } from '$lib/stores/achievement-combo';
     import { shopStore } from '$lib/stores/achievement-shop';
     import confetti from 'canvas-confetti';
@@ -12,6 +13,8 @@
     let particles: Particle[] = [];
     let animationFrame: number;
     let lastTime = 0;
+    let windowWidth = browser ? window.innerWidth : 0;
+    let windowHeight = browser ? window.innerHeight : 0;
 
     interface Particle {
         x: number;
@@ -32,6 +35,40 @@
         star: ['#ffffff', '#ffd700', '#4dabf7', '#51cf66', '#cc5de8'],
         glow: ['#ff9f43', '#ee5253', '#0abde3', '#10ac84', '#5f27cd']
     };
+
+    onMount(() => {
+        if (!browser) return;
+        
+        if (!canvas) return;
+        ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        const resize = () => {
+            if (!browser || !canvas) return;
+            windowWidth = window.innerWidth;
+            windowHeight = window.innerHeight;
+            canvas.width = windowWidth;
+            canvas.height = windowHeight;
+        };
+        
+        resize();
+        if (browser) {
+            window.addEventListener('resize', resize);
+        }
+
+        // Start animation loop
+        lastTime = performance.now();
+        animate();
+
+        return () => {
+            if (browser) {
+                window.removeEventListener('resize', resize);
+                if (animationFrame) {
+                    cancelAnimationFrame(animationFrame);
+                }
+            }
+        };
+    });
 
     // Particle effects
     function createParticle(x: number, y: number, type: Particle['type']) {
@@ -77,6 +114,7 @@
     }
 
     function drawParticles() {
+        if (!ctx || !canvas) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         particles.forEach(p => {
@@ -118,6 +156,8 @@
     }
 
     function drawStar(x: number, y: number, spikes: number, outerRadius: number, innerRadius: number, color: string) {
+        if (!ctx) return;
+        
         let rot = Math.PI / 2 * 3;
         let step = Math.PI / spikes;
 
@@ -145,6 +185,7 @@
     }
 
     function animate(time: number) {
+        if (!browser) return;
         if (!lastTime) lastTime = time;
         const delta = time - lastTime;
         lastTime = time;
@@ -157,6 +198,8 @@
 
     // Effect triggers
     function triggerAchievementUnlock(x: number, y: number) {
+        if (!browser) return;
+        
         // Burst of sparkles
         for (let i = 0; i < 30; i++) {
             particles.push(createParticle(x, y, 'sparkle'));
@@ -171,11 +214,13 @@
         confetti({
             particleCount: 100,
             spread: 70,
-            origin: { x: x / window.innerWidth, y: y / window.innerHeight }
+            origin: { x: x / windowWidth, y: y / windowHeight }
         });
     }
 
     function triggerComboEffect(x: number, y: number, multiplier: number) {
+        if (!browser) return;
+        
         const count = Math.floor(multiplier * 10);
         
         // Trails
@@ -194,27 +239,34 @@
             const end = Date.now() + duration;
 
             (function frame() {
+                if (!browser) return;
+                
                 confetti({
                     particleCount: 2,
                     angle: 60,
                     spread: 55,
-                    origin: { x: 0, y: 0.7 }
+                    origin: { x: x / windowWidth, y: y / windowHeight },
+                    colors: ['#ffd700', '#ff6b6b', '#4dabf7']
                 });
+
                 confetti({
                     particleCount: 2,
                     angle: 120,
                     spread: 55,
-                    origin: { x: 1, y: 0.7 }
+                    origin: { x: x / windowWidth, y: y / windowHeight },
+                    colors: ['#51cf66', '#cc5de8', '#ff9f43']
                 });
 
                 if (Date.now() < end) {
                     requestAnimationFrame(frame);
                 }
-            }());
+            })();
         }
     }
 
     function triggerPerfectCompletion(x: number, y: number) {
+        if (!browser) return;
+        
         // Rainbow spiral
         const colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#8f00ff'];
         const end = Date.now() + 3000;
@@ -226,7 +278,7 @@
                 particleCount: 7,
                 angle: 135,
                 spread: 80,
-                origin: { x: x / window.innerWidth, y: y / window.innerHeight },
+                origin: { x: x / windowWidth, y: y / windowHeight },
                 colors: colors,
                 ticks: 300,
                 gravity: 0.8,
@@ -248,36 +300,6 @@
         }
     }
 
-    onMount(() => {
-        ctx = canvas.getContext('2d');
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-        animationFrame = requestAnimationFrame(animate);
-
-        // Example effect triggers
-        window.addEventListener('click', (e) => {
-            if (Math.random() < 0.33) {
-                triggerAchievementUnlock(e.clientX, e.clientY);
-            } else if (Math.random() < 0.5) {
-                triggerComboEffect(e.clientX, e.clientY, Math.random() * 7 + 1);
-            } else {
-                triggerPerfectCompletion(e.clientX, e.clientY);
-            }
-        });
-    });
-
-    onDestroy(() => {
-        window.removeEventListener('resize', resizeCanvas);
-        if (animationFrame) {
-            cancelAnimationFrame(animationFrame);
-        }
-    });
-
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-
     export function playEffect(type: string, x: number, y: number, data?: any) {
         switch (type) {
             case 'unlock':
@@ -296,7 +318,7 @@
 <canvas
     bind:this={canvas}
     class="effects-canvas"
-></canvas>
+/>
 
 <style>
     .effects-canvas {

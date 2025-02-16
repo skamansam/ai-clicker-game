@@ -28,6 +28,7 @@
 	},
 	"dependencies": {
 		"@firebasegen/default-connector": "file:dataconnect-generated/js/default-connector",
+		"date-fns": "^4.1.0",
 		"firebase": "^10.8.0"
 	},
 	"volta": {
