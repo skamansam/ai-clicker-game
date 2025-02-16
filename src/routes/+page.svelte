@@ -6,10 +6,9 @@
     import { achievementStore } from '$lib/stores/achievements';
     import { prestigeStore } from '$lib/stores/prestige';
     import ClickerButton from '$lib/components/ClickerButton.svelte';
-    import UpgradeShop from '$lib/components/UpgradeShop.svelte';
     import Stats from '$lib/components/Stats.svelte';
     import Achievements from '$lib/components/Achievements.svelte';
-    import Prestige from '$lib/components/Prestige.svelte';
+    import ShopTabs from '$lib/components/ShopTabs.svelte';
     import AuthButton from '$lib/components/AuthButton.svelte';
     import { browser } from '$app/environment';
 
@@ -56,12 +55,7 @@
                 </div>
             </div>
             <div class="side-section">
-                <div class="prestige-section">
-                    <Prestige />
-                </div>
-                <div class="shop-section">
-                    <UpgradeShop />
-                </div>
+                <ShopTabs />
             </div>
             <div class="achievements-section">
                 <Achievements />
@@ -105,26 +99,29 @@
     }
 
     .clicker-section {
-        flex: 1;
         display: flex;
         justify-content: center;
         align-items: center;
+        flex: 1;
     }
 
     .side-section {
         display: flex;
         flex-direction: column;
         gap: 2rem;
-        height: 100%;
     }
 
-    @media (max-width: 1024px) {
-        .game-layout {
-            grid-template-columns: 1fr;
+    .achievements-section {
+        grid-column: 1 / -1;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .game-container {
+            background: #1a1a1a;
         }
 
-        .game-container {
-            padding: 1rem;
+        h1 {
+            color: #f8f9fa;
         }
     }
 </style>
