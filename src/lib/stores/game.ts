@@ -3,13 +3,13 @@ import type { GameState, Upgrade, UserUpgrade } from '$lib/types';
 import { browser } from '$app/environment';
 import { db, auth } from '$lib/firebase';
 import { collection, doc, setDoc, getDoc, updateDoc, increment, query, where, getDocs } from 'firebase/firestore';
+import { defaultUpgrades } from '$lib/data/upgrades';
 
 interface GameStore {
     clicks: number;
     clicksPerSecond: number;
     totalClicks: number;
-    upgrades: UserUpgrade[];
-    availableUpgrades: Upgrade[];
+    upgrades: { [id: string]: UserUpgrade };
     lastSynced: Date | null;
     dirty: boolean;
 }
@@ -23,8 +23,7 @@ function createGameStore() {
         clicks: 0,
         clicksPerSecond: 0,
         totalClicks: 0,
-        upgrades: [],
-        availableUpgrades: [],
+        upgrades: {},
         lastSynced: null,
         dirty: false
     };
@@ -52,8 +51,7 @@ function createGameStore() {
             clicks: 0,
             clicksPerSecond: 0,
             totalClicks: 0,
-            upgrades: [],
-            availableUpgrades: [],
+            upgrades: {},
             lastSynced: null,
             dirty: false
         };
@@ -157,7 +155,7 @@ function createGameStore() {
                                 clicks: firebaseData.clicks || 0,
                                 totalClicks: firebaseData.totalClicks || 0,
                                 clicksPerSecond: firebaseData.clicksPerSecond || 0,
-                                upgrades: firebaseData.upgrades || [],
+                                upgrades: firebaseData.upgrades || {},
                                 lastSynced: firebaseLastSynced,
                                 dirty: false
                             }));
@@ -176,21 +174,42 @@ function createGameStore() {
                 dirty: user ? true : false // Mark as dirty if logged in to trigger sync
             }));
         },
-        purchaseUpgrade: async (upgrade: Upgrade) => {
+        purchaseUpgrade: (upgradeId: string) => {
             if (!browser) return;
             
+            const upgrade = defaultUpgrades.find(u => u.id === upgradeId);
+            if (!upgrade) return;
+
             update(state => {
-                const updatedUpgrades = [...state.upgrades, { 
-                    id: upgrade.id,
-                    purchasedAt: new Date()
-                }];
+                const userUpgrade = state.upgrades[upgradeId] || {
+                    count: 0,
+                    cost: upgrade.base_cost,
+                    clicksPerSecond: upgrade.clicks_per_second
+                };
+
+                if (state.clicks < userUpgrade.cost) return state;
+
+                const newCount = userUpgrade.count + 1;
+                const newCost = Math.floor(upgrade.base_cost * Math.pow(1.15, newCount));
+                const newClicksPerSecond = state.clicksPerSecond + upgrade.clicks_per_second;
+
                 return {
                     ...state,
-                    upgrades: updatedUpgrades,
+                    clicks: state.clicks - userUpgrade.cost,
+                    clicksPerSecond: newClicksPerSecond,
+                    upgrades: {
+                        ...state.upgrades,
+                        [upgradeId]: {
+                            count: newCount,
+                            cost: newCost,
+                            clicksPerSecond: upgrade.clicks_per_second
+                        }
+                    },
                     dirty: true
                 };
             });
         },
+        getUpgrades: () => defaultUpgrades,
         forceSync: async () => {
             if (!browser) return;
             await syncWithFirebase();
