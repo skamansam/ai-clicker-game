@@ -140,17 +140,11 @@ function createAchievementStore() {
         },
         checkAchievements: async () => {
             if (!browser) return;
-            
-            const user = auth.currentUser;
-            if (!user) return;
 
             const state = get(achievementStore);
-            if (state.loading) return;
-
             const gameState = get(gameStore);
             const unlockedIds = new Set(state.unlockedAchievements.map(a => a.id));
 
-            // Check each achievement
             for (const achievement of state.achievements) {
                 if (unlockedIds.has(achievement.id)) continue;
 
@@ -162,37 +156,61 @@ function createAchievementStore() {
                     case 'speed':
                         isUnlocked = gameState.clicksPerSecond >= achievement.requirement;
                         break;
-                    // Add more achievement type checks here
+                    case 'upgrades':
+                        isUnlocked = Object.keys(gameState.upgrades).length >= achievement.requirement;
+                        break;
+                    case 'streaks':
+                        // Handled by streak store
+                        break;
+                    case 'time':
+                        // Handled by time played store
+                        break;
+                    case 'prestige':
+                        // Handled by prestige store
+                        break;
+                    case 'combos':
+                        // Handled by combo store
+                        break;
+                    case 'social':
+                        // Handled by social store
+                        break;
+                    case 'dedication':
+                        // Handled by dedication store
+                        break;
+                    case 'challenges':
+                        // Handled by challenge store
+                        break;
                 }
 
                 if (isUnlocked) {
                     try {
-                        // Add to user's achievements collection
-                        const userAchievementRef = collection(db, `users/${user.uid}/achievements`);
-                        await addDoc(userAchievementRef, {
-                            achievementId: achievement.id,
-                            unlockedAt: new Date(),
-                            progress: 100
-                        });
-
-                        // Update store state
+                        const now = new Date();
                         update(state => ({
                             ...state,
                             unlockedAchievements: [...state.unlockedAchievements, {
                                 id: achievement.id,
-                                unlockedAt: new Date(),
+                                unlockedAt: now,
                                 progress: 100
                             }]
                         }));
 
-                        // Show notification
-                        notificationStore.show({
+                        const user = auth.currentUser;
+                        if (user) {
+                            const userAchievementRef = collection(db, `users/${user.uid}/achievements`);
+                            await addDoc(userAchievementRef, {
+                                achievementId: achievement.id,
+                                unlockedAt: now,
+                                progress: 100
+                            }).catch(console.error);
+                        }
+
+                        notificationStore.notify({
                             type: 'achievement',
                             title: 'Achievement Unlocked!',
                             message: achievement.name,
-                            icon: achievement.icon || '🏆'
+                            icon: achievement.icon || '🏆',
+                            color: '#10b981'
                         });
-
                     } catch (error) {
                         console.error('Error unlocking achievement:', error);
                     }

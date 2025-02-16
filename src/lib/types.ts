@@ -71,6 +71,10 @@ export interface Achievement {
   id: string;
   name: string;
   description: string;
+  category: string;
+  type: 'clicks' | 'speed' | 'upgrades' | 'streaks' | 'time' | 'prestige' | 'combos' | 'social' | 'dedication' | 'challenges';
+  requirement: number;
+  icon: string;
   requirement_type: AchievementRequirementType[];
   requirement_values: number[];
   reward_multiplier: number;

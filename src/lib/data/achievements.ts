@@ -8,6 +8,8 @@ export const achievements: Achievement[] = [
         name: 'First Click',
         description: 'Click the button for the first time',
         category: 'clicks',
+        type: 'clicks',
+        requirement: 1,
         icon: '🖱️'
     },
     {
@@ -15,6 +17,8 @@ export const achievements: Achievement[] = [
         name: 'Century Clicker',
         description: 'Click 100 times',
         category: 'clicks',
+        type: 'clicks',
+        requirement: 100,
         icon: '💯'
     },
     {
@@ -22,6 +26,8 @@ export const achievements: Achievement[] = [
         name: 'Click Master',
         description: 'Click 1,000 times',
         category: 'clicks',
+        type: 'clicks',
+        requirement: 1000,
         icon: '🎯'
     },
 
@@ -31,6 +37,8 @@ export const achievements: Achievement[] = [
         name: 'Quick Fingers',
         description: 'Click 10 times in 5 seconds',
         category: 'speed',
+        type: 'speed',
+        requirement: 2,  // clicks per second
         icon: '⚡'
     },
     {
@@ -38,6 +46,8 @@ export const achievements: Achievement[] = [
         name: 'Lightning Fast',
         description: 'Click 20 times in 5 seconds',
         category: 'speed',
+        type: 'speed',
+        requirement: 4,  // clicks per second
         icon: '⚡⚡'
     },
 
@@ -47,6 +57,8 @@ export const achievements: Achievement[] = [
         name: 'Upgrade Beginner',
         description: 'Purchase your first upgrade',
         category: 'upgrades',
+        type: 'upgrades',
+        requirement: 1,
         icon: '⬆️'
     },
     {
@@ -54,6 +66,8 @@ export const achievements: Achievement[] = [
         name: 'Basic Collection',
         description: 'Own all basic upgrades',
         category: 'upgrades',
+        type: 'upgrades',
+        requirement: 5,
         icon: '📦'
     },
 
@@ -63,6 +77,8 @@ export const achievements: Achievement[] = [
         name: 'Getting Warmed Up',
         description: 'Maintain a 10-click streak',
         category: 'streaks',
+        type: 'streaks',
+        requirement: 10,
         icon: '🔥'
     },
     {
@@ -70,6 +86,8 @@ export const achievements: Achievement[] = [
         name: 'On Fire',
         description: 'Maintain a 50-click streak',
         category: 'streaks',
+        type: 'streaks',
+        requirement: 50,
         icon: '🔥🔥'
     },
 
@@ -79,6 +97,8 @@ export const achievements: Achievement[] = [
         name: 'Dedicated',
         description: 'Play for 1 hour',
         category: 'time',
+        type: 'time',
+        requirement: 3600,  // seconds
         icon: '⏰'
     },
     {
@@ -86,6 +106,8 @@ export const achievements: Achievement[] = [
         name: 'Day One',
         description: 'Play for 24 hours total',
         category: 'time',
+        type: 'time',
+        requirement: 86400,  // seconds
         icon: '📅'
     },
 
@@ -95,6 +117,8 @@ export const achievements: Achievement[] = [
         name: 'New Beginning',
         description: 'Prestige for the first time',
         category: 'prestige',
+        type: 'prestige',
+        requirement: 1,
         icon: '✨'
     },
     {
@@ -102,6 +126,8 @@ export const achievements: Achievement[] = [
         name: 'Prestigious',
         description: 'Reach prestige level 5',
         category: 'prestige',
+        type: 'prestige',
+        requirement: 5,
         icon: '🌟'
     },
 
@@ -111,6 +137,8 @@ export const achievements: Achievement[] = [
         name: 'Double Trouble',
         description: 'Unlock 2 achievements within 2 seconds',
         category: 'combos',
+        type: 'combos',
+        requirement: 2,
         icon: '🎯'
     },
     {
@@ -118,6 +146,8 @@ export const achievements: Achievement[] = [
         name: 'Triple Threat',
         description: 'Unlock 3 achievements within 2 seconds',
         category: 'combos',
+        type: 'combos',
+        requirement: 3,
         icon: '🎯🎯'
     },
 
@@ -127,6 +157,8 @@ export const achievements: Achievement[] = [
         name: 'Social Butterfly',
         description: 'Share your progress for the first time',
         category: 'social',
+        type: 'social',
+        requirement: 1,
         icon: '💬'
     },
     {
@@ -134,6 +166,8 @@ export const achievements: Achievement[] = [
         name: 'Influencer',
         description: 'Share your progress 10 times',
         category: 'social',
+        type: 'social',
+        requirement: 10,
         icon: '🌟'
     },
 
@@ -143,6 +177,8 @@ export const achievements: Achievement[] = [
         name: 'Regular Player',
         description: 'Play for 3 days in a row',
         category: 'dedication',
+        type: 'dedication',
+        requirement: 3,
         icon: '📅'
     },
     {
@@ -150,6 +186,8 @@ export const achievements: Achievement[] = [
         name: 'Week Warrior',
         description: 'Play for 7 days in a row',
         category: 'dedication',
+        type: 'dedication',
+        requirement: 7,
         icon: '📅📅'
     },
 
@@ -159,6 +197,8 @@ export const achievements: Achievement[] = [
         name: 'Challenger',
         description: 'Complete your first challenge',
         category: 'challenges',
+        type: 'challenges',
+        requirement: 1,
         icon: '⚔️'
     },
     {
@@ -166,6 +206,8 @@ export const achievements: Achievement[] = [
         name: 'Challenge Master',
         description: 'Complete all available challenges',
         category: 'challenges',
+        type: 'challenges',
+        requirement: 10,
         icon: '👑'
     }
 ];
