@@ -9,6 +9,7 @@
 
     export let show = false;
     let selectedCategory: AchievementCategory | 'all' = 'all';
+    let showResetConfirm = false;
 
     // Load base achievements on mount
     onMount(() => {
@@ -83,6 +84,19 @@
         const unlocked = unlockedMap.get(achievement.id);
         return unlocked ? new Date(unlocked.unlockedAt) : null;
     }
+
+    function handleReset() {
+        showResetConfirm = true;
+    }
+
+    function confirmReset() {
+        achievementStore.resetProgress();
+        showResetConfirm = false;
+    }
+
+    function cancelReset() {
+        showResetConfirm = false;
+    }
 </script>
 
 {#if show}
@@ -116,10 +130,36 @@
                 <span class="separator">/</span>
                 <span class="total">{$achievementStore.achievements.length}</span>
             </div>
+            {#if $authStore}
+                <button 
+                    class="reset-button" 
+                    on:click={handleReset}
+                    title="Reset all achievement progress"
+                >
+                    Reset
+                </button>
+            {/if}
             <button class="close-button" on:click={() => dispatch('close')}>×</button>
         </div>
 
         <div class="modal-body">
+            {#if showResetConfirm}
+                <div class="reset-confirm" transition:scale>
+                    <div class="reset-confirm-content">
+                        <h3>⚠️ Reset Progress?</h3>
+                        <p>This will permanently delete all your achievement progress. This action cannot be undone.</p>
+                        <div class="reset-confirm-actions">
+                            <button class="reset-confirm-button" on:click={confirmReset}>
+                                Yes, Reset Everything
+                            </button>
+                            <button class="reset-cancel-button" on:click={cancelReset}>
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {/if}
+
             {#if $achievementStore.loading}
                 <div class="loading">Loading achievements...</div>
             {:else if $achievementStore.error}
@@ -398,6 +438,94 @@
         background: var(--success-50);
     }
 
+    .reset-button {
+        background: #ef4444;
+        border: none;
+        font-size: 0.875rem;
+        font-weight: 500;
+        line-height: 1;
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        color: white;
+        transition: all 0.2s;
+        border-radius: 0.375rem;
+        margin-left: 0.5rem;
+    }
+
+    .reset-button:hover {
+        background: #dc2626;
+    }
+
+    .reset-button:active {
+        background: #b91c1c;
+    }
+
+    .reset-confirm {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.75);
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        z-index: 10;
+    }
+
+    .reset-confirm-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 1rem;
+        max-width: 400px;
+        text-align: center;
+    }
+
+    .reset-confirm-content h3 {
+        margin: 0 0 1rem;
+        font-size: 1.5rem;
+        color: var(--error-600);
+    }
+
+    .reset-confirm-content p {
+        margin: 0 0 1.5rem;
+        color: var(--text-secondary);
+        line-height: 1.5;
+    }
+
+    .reset-confirm-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+    }
+
+    .reset-confirm-button {
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .reset-confirm-button:hover {
+        background: #dc2626;
+    }
+
+    .reset-cancel-button {
+        background: var(--gray-100);
+        color: var(--text-primary);
+        border: 1px solid var(--gray-200);
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .reset-cancel-button:hover {
+        background: var(--gray-200);
+    }
+
     /* Dark mode */
     :global(.dark) .modal-content {
         background: var(--gray-800);
@@ -460,5 +588,39 @@
     :global(.dark) .loading,
     :global(.dark) .empty {
         color: var(--gray-400);
+    }
+
+    :global(.dark) .reset-button {
+        background: #dc2626;
+    }
+
+    :global(.dark) .reset-button:hover {
+        background: #ef4444;
+    }
+
+    :global(.dark) .reset-button:active {
+        background: #f87171;
+    }
+
+    :global(.dark) .reset-confirm-content {
+        background: var(--gray-800);
+    }
+
+    :global(.dark) .reset-confirm-button {
+        background: #ef4444;
+    }
+
+    :global(.dark) .reset-confirm-button:hover {
+        background: #dc2626;
+    }
+
+    :global(.dark) .reset-cancel-button {
+        background: var(--gray-700);
+        border-color: var(--gray-600);
+        color: var(--gray-100);
+    }
+
+    :global(.dark) .reset-cancel-button:hover {
+        background: var(--gray-600);
     }
 </style>

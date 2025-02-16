@@ -1,7 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { Achievement, UserAchievement } from '$lib/types';
 import { db, auth } from '$lib/firebase';
-import { collection, query, where, getDocs, addDoc, updateDoc, onSnapshot, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
 import { gameStore } from './game';
 import { notificationStore } from './notifications';
 import { browser } from '$app/environment';
@@ -80,6 +80,58 @@ function createAchievementStore() {
                 update(state => ({ ...state, unlockedAchievements }));
             } catch (error) {
                 console.error('Error loading user achievements:', error);
+            }
+        },
+        resetProgress: async () => {
+            if (!browser) return;
+            
+            const user = auth.currentUser;
+            if (!user) return;
+
+            try {
+                // Delete all user achievements
+                const userAchievementsRef = collection(db, `users/${user.uid}/achievements`);
+                const userAchievementsSnapshot = await getDocs(userAchievementsRef);
+                
+                const deletePromises = userAchievementsSnapshot.docs.map(doc => 
+                    deleteDoc(doc.ref)
+                );
+                
+                await Promise.all(deletePromises);
+
+                // Reset store state - make sure to keep base achievements but clear everything else
+                update(state => ({
+                    ...state,
+                    unlockedAchievements: [],
+                    comboTimer: null,
+                    comboAchievements: [],
+                    loading: false,
+                    error: null
+                }));
+
+                // Also reset other achievement-related stores
+                gameStore.update(state => ({
+                    ...state,
+                    stats: {
+                        ...state.stats,
+                        achievementsUnlocked: 0,
+                        lastAchievement: null,
+                        currentStreak: 0,
+                        longestStreak: 0
+                    }
+                }));
+
+                // Show success notification
+                notificationStore.show({
+                    type: 'success',
+                    message: 'Achievement progress has been reset'
+                });
+            } catch (error) {
+                console.error('Error resetting achievements:', error);
+                notificationStore.show({
+                    type: 'error',
+                    message: 'Failed to reset achievement progress'
+                });
             }
         },
         checkAchievements: async () => {
