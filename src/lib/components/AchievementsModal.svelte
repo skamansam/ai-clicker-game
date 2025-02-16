@@ -176,15 +176,15 @@
                             class={`achievement-card ${isUnlocked(achievement.id) ? 'achieved' : 'locked'}`}
                             transition:scale|local
                         >
-                            <div class="achievement-info">
-                                <h3>{achievement.name}</h3>
-                                <p>{achievement.description}</p>
-                            </div>
                             <div class="icon-wrapper">
                                 <div class="icon">{achievement.icon || getCategoryIcon(achievement.category)}</div>
                                 {#if isUnlocked(achievement.id)}
                                     <div class="check-mark">✓</div>
                                 {/if}
+                            </div>
+                            <div class="achievement-info">
+                                <h3>{achievement.name}</h3>
+                                <p>{achievement.description}</p>
                             </div>
                         </div>
                     {/each}
@@ -370,37 +370,31 @@
 
     .icon-wrapper {
         position: relative;
-        width: 3rem;
+        min-width: 3rem;
         height: 3rem;
-        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .icon {
-        width: 100%;
-        height: 100%;
-        display: grid;
-        place-items: center;
-        background: white;
-        border-radius: 0.5rem;
-        font-size: 1.5rem;
-        border: 2px solid var(--gray-200);
-        transition: all 0.2s ease;
+        font-size: 1.75rem;
     }
 
     .check-mark {
         position: absolute;
-        bottom: -0.375rem;
-        right: -0.375rem;
-        background: var(--success-500);
+        bottom: -0.25rem;
+        right: -0.25rem;
+        background: #10b981;
         color: white;
         width: 1.25rem;
         height: 1.25rem;
         border-radius: 50%;
-        display: grid;
-        place-items: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-size: 0.75rem;
         font-weight: bold;
-        border: 2px solid white;
     }
 
     .info {
