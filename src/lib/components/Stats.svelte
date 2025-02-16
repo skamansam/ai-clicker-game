@@ -39,10 +39,12 @@
     .stats {
         display: flex;
         gap: 2rem;
-        background: white;
+        background: var(--bg-color);
         padding: 1rem;
         border-radius: 0.5rem;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border-color);
+        transition: background-color 0.3s ease, border-color 0.3s ease;
     }
 
     .stat-item {
@@ -52,7 +54,8 @@
     h3 {
         margin: 0;
         font-size: 0.9rem;
-        color: #868e96;
+        color: var(--text-color);
+        opacity: 0.7;
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
@@ -61,6 +64,6 @@
         margin: 0.5rem 0 0 0;
         font-size: 1.5rem;
         font-weight: bold;
-        color: #212529;
+        color: var(--text-color);
     }
 </style>

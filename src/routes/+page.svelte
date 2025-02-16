@@ -54,7 +54,7 @@
 <div class="game-container">
     <header>
         <h1>Clicker Game</h1>
-        <div class="header-actions">
+        <div class="header-right">
             <ThemeToggle />
             <button 
                 class="trophy-button" 
@@ -87,6 +87,7 @@
             </div>
         </div>
     </main>
+
     {#if showAchievements}
         <AchievementsModal bind:show={showAchievements} on:close={() => showAchievements = false} />
     {/if}
@@ -113,33 +114,90 @@
         --error-color: #f87171;
     }
 
-    :global(body) {
-        background-color: var(--bg-color);
-        color: var(--text-color);
-    }
-
     .game-container {
         min-height: 100vh;
         height: 100vh;
-        background: var(--bg-color);
         display: flex;
         flex-direction: column;
     }
 
     header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 1rem 2rem;
-        background: white;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        flex-shrink: 0;
+        background: var(--bg-color);
+        transition: border-color 0.3s ease;
     }
 
-    .header-actions {
+    h1 {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .header-right {
         display: flex;
-        align-items: center;
         gap: 1rem;
+        align-items: center;
+    }
+
+    button {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        border: none;
+        background: var(--primary-color);
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+    button:hover {
+        background: var(--primary-hover);
+    }
+
+    main {
+        flex: 1;
+        padding: 2rem;
+        display: flex;
+        justify-content: center;
+        background: var(--bg-color);
+        transition: background-color 0.3s ease;
+        min-height: 0;
+    }
+
+    .game-content {
+        max-width: 1200px;
+        width: 100%;
+        height: 100%;
+    }
+
+    .game-layout {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 2rem;
+        height: 100%;
+    }
+
+    .game-section {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .clicker-section {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .side-section {
+        height: 100%;
+        overflow-y: auto;
     }
 
     .trophy-button {
@@ -166,81 +224,5 @@
 
     .achievement-count {
         font-size: 0.875rem;
-    }
-
-    h1 {
-        margin: 0;
-        color: #212529;
-        font-size: 2rem;
-    }
-
-    main {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-    }
-
-    .game-content {
-        flex: 1;
-        padding: 2rem;
-        overflow: auto;
-        display: flex;
-        min-height: 0;
-    }
-
-    .game-layout {
-        display: grid;
-        grid-template-columns: 1fr 400px;
-        gap: 2rem;
-        max-width: 1400px;
-        margin: 0 auto;
-        width: 100%;
-        min-height: 0;
-    }
-
-    .game-section {
-        display: flex;
-        flex-direction: column;
-        gap: 2rem;
-        min-height: 0;
-    }
-
-    .clicker-section {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex: 1;
-    }
-
-    .side-section {
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-        flex: 1;
-    }
-
-    @media (prefers-color-scheme: dark) {
-        .game-container {
-            background: #1a1a1a;
-        }
-
-        header {
-            background: #2d2d2d;
-            border-bottom: 1px solid #3d3d3d;
-        }
-
-        h1 {
-            color: #f8f9fa;
-        }
-
-        .trophy-button {
-            background: var(--primary-900);
-            color: var(--primary-300);
-        }
-
-        .trophy-button:hover {
-            background: var(--primary-800);
-        }
     }
 </style>
