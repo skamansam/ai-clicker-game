@@ -76,8 +76,8 @@
         return categoryIcons[category as AchievementCategory] || '🏆';
     }
 
-    function isUnlocked(achievement: any): boolean {
-        return unlockedMap.has(achievement.id);
+    function isUnlocked(achievementId: string): boolean {
+        return unlockedMap.has(achievementId);
     }
 
     function getUnlockDate(achievement: any): Date | null {
@@ -173,31 +173,19 @@
                 <div class="achievements-grid">
                     {#each filteredAchievements as achievement (achievement.id)}
                         <div 
-                            class="achievement"
-                            class:unlocked={isUnlocked(achievement)}
+                            class={`achievement-card ${isUnlocked(achievement.id) ? 'achieved' : 'locked'}`}
                             transition:scale|local
                         >
-                            <div class="achievement-content">
-                                <div class="icon-wrapper">
-                                    <div class="icon">{achievement.icon || getCategoryIcon(achievement.category)}</div>
-                                    {#if isUnlocked(achievement)}
-                                        <div class="check-mark">✓</div>
-                                    {/if}
-                                </div>
-                                <div class="info">
-                                    <h3>{achievement.name}</h3>
-                                    <div class="category-tag">
-                                        <span class="tag-icon">{getCategoryIcon(achievement.category)}</span>
-                                        <span>{formatCategory(achievement.category)}</span>
-                                    </div>
-                                    <p>{achievement.description}</p>
-                                </div>
+                            <div class="achievement-info">
+                                <h3>{achievement.name}</h3>
+                                <p>{achievement.description}</p>
                             </div>
-                            {#if isUnlocked(achievement)}
-                                <div class="unlock-date">
-                                    Unlocked {getUnlockDate(achievement)?.toLocaleDateString()}
-                                </div>
-                            {/if}
+                            <div class="icon-wrapper">
+                                <div class="icon">{achievement.icon || getCategoryIcon(achievement.category)}</div>
+                                {#if isUnlocked(achievement.id)}
+                                    <div class="check-mark">✓</div>
+                                {/if}
+                            </div>
                         </div>
                     {/each}
                 </div>
@@ -335,17 +323,49 @@
         gap: 1rem;
     }
 
-    .achievement {
-        background: var(--gray-50);
-        border-radius: 0.75rem;
-        border: 2px solid transparent;
-        transition: all 0.2s ease;
+    .achievement-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background-color: #1f2937;
+        transition: all 0.2s ease-in-out;
+        cursor: pointer;
     }
 
-    .achievement-content {
-        padding: 1rem;
-        display: flex;
-        gap: 1rem;
+    .achievement-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .achievement-card.achieved {
+        background-color: #374151;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .achievement-card.locked {
+        opacity: 0.6;
+    }
+
+    .achievement-info h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #e5e7eb;
+    }
+
+    .achievement-info p {
+        margin: 0.25rem 0 0;
+        font-size: 0.875rem;
+        color: #9ca3af;
+    }
+
+    .achievement-card.achieved .achievement-info h3 {
+        color: #f3f4f6;
+    }
+
+    .achievement-card.achieved .achievement-info p {
+        color: #d1d5db;
     }
 
     .icon-wrapper {
