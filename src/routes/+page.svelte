@@ -47,19 +47,21 @@
     </header>
 
     <main>
-        <div class="game-layout">
-            <div class="game-section">
-                <Stats />
-                <div class="clicker-section">
-                    <ClickerButton />
+        <div class="game-content">
+            <div class="game-layout">
+                <div class="game-section">
+                    <Stats />
+                    <div class="clicker-section">
+                        <ClickerButton />
+                    </div>
+                </div>
+                <div class="side-section">
+                    <ShopTabs />
                 </div>
             </div>
-            <div class="side-section">
-                <ShopTabs />
-            </div>
-            <div class="achievements-section">
-                <Achievements />
-            </div>
+        </div>
+        <div class="achievements-section">
+            <Achievements />
         </div>
     </main>
 </div>
@@ -68,14 +70,17 @@
     .game-container {
         min-height: 100vh;
         background: #f8f9fa;
-        padding: 2rem;
+        display: flex;
+        flex-direction: column;
     }
 
     header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 2rem;
+        padding: 1rem 2rem;
+        background: white;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
     h1 {
@@ -84,12 +89,26 @@
         font-size: 2rem;
     }
 
+    main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .game-content {
+        flex: 1;
+        padding: 2rem;
+        overflow: auto;
+    }
+
     .game-layout {
         display: grid;
         grid-template-columns: 1fr 400px;
         gap: 2rem;
         max-width: 1400px;
         margin: 0 auto;
+        height: 100%;
     }
 
     .game-section {
@@ -108,11 +127,14 @@
     .side-section {
         display: flex;
         flex-direction: column;
-        gap: 2rem;
+        height: 100%;
     }
 
     .achievements-section {
-        grid-column: 1 / -1;
+        background: white;
+        padding: 1rem;
+        border-top: 1px solid #e9ecef;
+        box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1);
     }
 
     @media (prefers-color-scheme: dark) {
@@ -120,8 +142,18 @@
             background: #1a1a1a;
         }
 
+        header {
+            background: #2d2d2d;
+            border-bottom: 1px solid #3d3d3d;
+        }
+
         h1 {
             color: #f8f9fa;
+        }
+
+        .achievements-section {
+            background: #2d2d2d;
+            border-color: #3d3d3d;
         }
     }
 </style>
