@@ -10,6 +10,7 @@
     import Stats from '$lib/components/Stats.svelte';
     import Achievements from '$lib/components/Achievements.svelte';
     import Prestige from '$lib/components/Prestige.svelte';
+    import AuthButton from '$lib/components/AuthButton.svelte';
     import { browser } from '$app/environment';
 
     let checkInterval: NodeJS.Timeout;
@@ -43,7 +44,7 @@
 <div class="game-container">
     <header>
         <h1>Clicker Game</h1>
-        <button class="sign-out" on:click={() => authStore.signOut()}>Sign Out</button>
+        <AuthButton />
     </header>
 
     <main>
@@ -87,20 +88,6 @@
         margin: 0;
         color: #212529;
         font-size: 2rem;
-    }
-
-    .sign-out {
-        padding: 0.5rem 1rem;
-        background: #e9ecef;
-        border: none;
-        border-radius: 0.25rem;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: background-color 0.2s;
-    }
-
-    .sign-out:hover {
-        background: #dee2e6;
     }
 
     .game-layout {
