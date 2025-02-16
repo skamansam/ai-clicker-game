@@ -16,11 +16,13 @@ interface AchievementStore {
     selectedCategory: AchievementCategory | 'all';
     comboTimer: number | null;
     comboAchievements: Achievement[];
+    recentUnlocks: Achievement[];
     loading: boolean;
     error: string | null;
 }
 
 const COMBO_TIMEOUT = 2000; // 2 seconds to chain achievements
+const NOTIFICATION_DURATION = 5000; // 5 seconds for notifications
 const COMBO_MULTIPLIERS = [1, 1.2, 1.5, 2, 3, 5]; // Multipliers for combo chains
 
 function createAchievementStore() {
@@ -42,6 +44,7 @@ function createAchievementStore() {
         selectedCategory: 'all',
         comboTimer: null,
         comboAchievements: [],
+        recentUnlocks: [],
         loading: false,
         error: null
     });
@@ -115,6 +118,7 @@ function createAchievementStore() {
                     unlockedAchievements: [],
                     comboTimer: null,
                     comboAchievements: [],
+                    recentUnlocks: [],
                     loading: false,
                     error: null
                 }));
@@ -140,7 +144,7 @@ function createAchievementStore() {
         },
         checkAchievements: async () => {
             if (!browser) return;
-
+            
             const state = get(achievementStore);
             const gameState = get(gameStore);
             const unlockedIds = new Set(state.unlockedAchievements.map(a => a.id));
@@ -191,8 +195,17 @@ function createAchievementStore() {
                                 id: achievement.id,
                                 unlockedAt: now,
                                 progress: 100
-                            }]
+                            }],
+                            recentUnlocks: [...state.recentUnlocks, achievement]
                         }));
+
+                        // Remove from recent unlocks after duration
+                        setTimeout(() => {
+                            update(state => ({
+                                ...state,
+                                recentUnlocks: state.recentUnlocks.filter(a => a.id !== achievement.id)
+                            }));
+                        }, NOTIFICATION_DURATION);
 
                         const user = auth.currentUser;
                         if (user) {
@@ -204,13 +217,7 @@ function createAchievementStore() {
                             }).catch(console.error);
                         }
 
-                        notificationStore.notify({
-                            type: 'achievement',
-                            title: 'Achievement Unlocked!',
-                            message: achievement.name,
-                            icon: achievement.icon || '🏆',
-                            color: '#10b981'
-                        });
+                        notificationStore.achievementUnlocked(achievement);
                     } catch (error) {
                         console.error('Error unlocking achievement:', error);
                     }
@@ -235,15 +242,19 @@ function createAchievementStore() {
                         id: achievement.id,
                         unlockedAt: new Date(),
                         progress: 100
-                    }]
+                    }],
+                    recentUnlocks: [...state.recentUnlocks, achievement]
                 }));
 
-                notificationStore.show({
-                    type: 'achievement',
-                    title: 'Achievement Unlocked!',
-                    message: achievement.name,
-                    icon: achievement.icon || '🏆'
-                });
+                // Remove from recent unlocks after duration
+                setTimeout(() => {
+                    update(state => ({
+                        ...state,
+                        recentUnlocks: state.recentUnlocks.filter(a => a.id !== achievement.id)
+                    }));
+                }, NOTIFICATION_DURATION);
+
+                notificationStore.achievementUnlocked(achievement);
 
             } catch (error) {
                 console.error('Error unlocking achievement:', error);
@@ -317,7 +328,8 @@ function createAchievementStore() {
                         ...store,
                         unlockedAchievements: [...store.unlockedAchievements, userAchievement],
                         comboTimer: Date.now(),
-                        comboAchievements
+                        comboAchievements,
+                        recentUnlocks: [...store.recentUnlocks, achievement]
                     };
                 });
             } catch (error) {
@@ -380,7 +392,7 @@ export const achievementStore = createAchievementStore();
 export const filteredAchievements = derived(
     [achievementStore],
     ([$achievementStore]) => {
-        const { achievements, selectedCategory, unlockedAchievements } = $achievementStore;
+        const { achievements, selectedCategory, unlockedAchievements, recentUnlocks } = $achievementStore;
         const unlockedIds = new Set(unlockedAchievements.map(a => a.id));
 
         return achievements
@@ -389,7 +401,8 @@ export const filteredAchievements = derived(
             )
             .map(achievement => ({
                 ...achievement,
-                unlocked: unlockedIds.has(achievement.id)
+                unlocked: unlockedIds.has(achievement.id),
+                recent: recentUnlocks.some(a => a.id === achievement.id)
             }));
     }
 );

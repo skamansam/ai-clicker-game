@@ -64,6 +64,8 @@
         </div>
     </header>
 
+    <AchievementNotifications />
+
     <main>
         <div class="game-content">
             <div class="game-layout">
@@ -79,11 +81,9 @@
             </div>
         </div>
     </main>
-    <AchievementNotifications />
-    <AchievementsModal 
-        show={showAchievements} 
-        on:close={() => showAchievements = false} 
-    />
+    {#if showAchievements}
+        <AchievementsModal bind:show={showAchievements} on:close={() => showAchievements = false} />
+    {/if}
 </div>
 
 <style>
