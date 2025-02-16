@@ -19,7 +19,7 @@
             await Promise.all([
                 gameStore.loadGameState(),
                 achievementStore.loadAchievements(),
-                prestigeStore.loadPrestige()
+                prestigeStore.loadPrestigeData()
             ]);
         }
 

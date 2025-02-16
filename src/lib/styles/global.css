@@ -1,4 +1,8 @@
 /* src/lib/styles/global.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
     /* Color variables */
     --bg-primary: #f9fafb;

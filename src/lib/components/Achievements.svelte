@@ -2,9 +2,6 @@
 <script lang="ts">
     import { achievementStore, filteredAchievements } from '$lib/stores/achievements';
     import AchievementCategories from './AchievementCategories.svelte';
-    import AchievementFilters from './AchievementFilters.svelte';
-    import AchievementSuggestions from './AchievementSuggestions.svelte';
-    import AchievementSocial from './AchievementSocial.svelte';
     import { fade, slide } from 'svelte/transition';
     import { onMount } from 'svelte';
     import { browser } from '$app/environment';
@@ -12,7 +9,6 @@
     let loading = true;
     let error: string | null = null;
     let selectedAchievement: any = null;
-    let showFilters = false;
 
     onMount(async () => {
         if (!browser) return;
@@ -51,17 +47,15 @@
 
 <svelte:window on:keydown={handleModalKeyDown} />
 
-<div class="achievements-container">
+<div class="achievements">
     <div class="header">
         <h2>Achievements</h2>
-        <div class="controls">
-            <button
-                class="control-btn"
-                class:active={showFilters}
-                on:click={() => showFilters = !showFilters}
-            >
-                Filters
-            </button>
+        <div class="progress">
+            {#if $achievementStore.achievements.length > 0}
+                {$achievementStore.unlockedAchievements.length} / {$achievementStore.achievements.length}
+            {:else}
+                Loading...
+            {/if}
         </div>
     </div>
 
@@ -72,117 +66,73 @@
     {:else}
         <AchievementCategories />
         
-        <AchievementFilters
-            achievements={$achievementStore.achievements}
-            bind:showAdvanced={showFilters}
-        />
-
-        <AchievementSuggestions {achievements} />
-
         <div class="achievements-grid">
             {#each $filteredAchievements as achievement (achievement.id)}
                 <button 
                     type="button"
-                    class="achievement-card"
-                    class:unlocked={$achievementStore.unlockedAchievements.some(
-                        ua => ua.achievement_id === achievement.id
-                    )}
+                    class="achievement"
+                    class:unlocked={achievement.unlocked}
                     data-achievement-id={achievement.id}
                     on:click={() => selectedAchievement = achievement}
                     on:keydown={handleKeyDown}
                     transition:slide
                 >
-                    <div class="tier-badge" style="background: {achievement.tier_color}">
-                        {achievement.tier.charAt(0).toUpperCase()}
+                    <div class="icon">{achievement.icon || '🏆'}</div>
+                    <div class="info">
+                        <h3>{achievement.name}</h3>
+                        <p>{achievement.description}</p>
                     </div>
-                    <h3>{achievement.name}</h3>
-                    <p>{achievement.description}</p>
-                    <div class="reward">
-                        {achievement.reward_multiplier}x Multiplier
-                    </div>
-                    {#if achievement.tier_effect}
-                        <div class="effect">
-                            {achievement.tier_effect} Effect
-                        </div>
-                    {/if}
                 </button>
             {/each}
         </div>
     {/if}
+</div>
 
-    {#if selectedAchievement}
+{#if selectedAchievement}
+    <div 
+        class="modal-backdrop"
+        role="dialog"
+        aria-labelledby="modal-title"
+        aria-modal="true"
+        transition:fade
+    >
         <div 
-            class="modal-backdrop"
-            role="dialog"
-            aria-labelledby="modal-title"
-            aria-modal="true"
-            transition:fade
+            class="modal-content"
+            role="document"
         >
-            <div 
-                class="modal-content"
-                role="document"
+            <button 
+                type="button"
+                class="close-button"
+                aria-label="Close modal"
+                on:click={closeModal}
             >
-                <button 
-                    type="button"
-                    class="close-button"
-                    aria-label="Close modal"
-                    on:click={closeModal}
-                >
-                    ×
-                </button>
-                <div class="achievement-details">
-                    <h2 id="modal-title" class="modal-title">
-                        {selectedAchievement.name}
-                    </h2>
-                    <div class="achievement-info">
-                        <div class="tier-badge" style="background: {selectedAchievement.tier_color}">
-                            {selectedAchievement.tier.charAt(0).toUpperCase()}
-                        </div>
-                        <p class="description">{selectedAchievement.description}</p>
-                        <div class="progress-bar">
-                            <div 
-                                class="progress-fill"
-                                style="width: {selectedAchievement.unlocked ? '100' : '0'}%"
-                            ></div>
-                        </div>
+                ×
+            </button>
+            <div class="achievement-details">
+                <h2 id="modal-title" class="modal-title">
+                    {selectedAchievement.name}
+                </h2>
+                <div class="achievement-info">
+                    <div class="tier-badge" style="background: {selectedAchievement.tier_color}">
+                        {selectedAchievement.tier.charAt(0).toUpperCase()}
                     </div>
-                    <div class="rewards-section">
-                        <h3>Rewards</h3>
-                        <div class="rewards-grid">
-                            <div class="reward-item">
-                                <span class="icon"></span>
-                                <span class="label">Multiplier</span>
-                                <span class="value">{selectedAchievement.reward_multiplier}x</span>
-                            </div>
-                            {#if selectedAchievement.tier_effect}
-                                <div class="reward-item">
-                                    <span class="icon"></span>
-                                    <span class="label">Effect</span>
-                                    <span class="value">{selectedAchievement.tier_effect}</span>
-                                </div>
-                            {/if}
-                            {#if selectedAchievement.tier_completion_reward}
-                                <div class="reward-item">
-                                    <span class="icon"></span>
-                                    <span class="label">Tier Bonus</span>
-                                    <span class="value">
-                                        {selectedAchievement.tier_completion_reward.value}x
-                                        {selectedAchievement.tier_completion_reward.type}
-                                    </span>
-                                </div>
-                            {/if}
-                        </div>
+                    <p class="description">{selectedAchievement.description}</p>
+                    <div class="progress-bar">
+                        <div 
+                            class="progress-fill"
+                            style="width: {selectedAchievement.unlocked ? '100' : '0'}%"
+                        ></div>
                     </div>
-
-                    <AchievementSocial achievement={selectedAchievement} />
                 </div>
             </div>
         </div>
-    {/if}
-</div>
+    </div>
+{/if}
 
 <style>
-    .achievements-container {
+    .achievements {
+        background: var(--bg-secondary);
+        border-radius: 8px;
         padding: 1rem;
     }
 
@@ -195,91 +145,82 @@
 
     h2 {
         margin: 0;
-        color: #212529;
+        font-size: 1.5rem;
+        color: var(--text-primary);
     }
 
-    .controls {
-        display: flex;
-        gap: 0.5rem;
+    .progress {
+        font-size: 1.1rem;
+        color: var(--text-accent);
     }
 
-    .control-btn {
-        padding: 0.5rem 1rem;
-        border: none;
-        border-radius: 0.25rem;
-        background: #f8f9fa;
-        color: #495057;
-        cursor: pointer;
-        transition: all 0.2s;
+    .loading,
+    .error {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-secondary);
     }
 
-    .control-btn:hover {
-        background: #e9ecef;
-    }
-
-    .control-btn.active {
-        background: #339af0;
-        color: white;
+    .error {
+        color: var(--error);
     }
 
     .achievements-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         gap: 1rem;
         margin-top: 1rem;
     }
 
-    .achievement-card {
-        position: relative;
+    .achievement {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
         padding: 1rem;
-        background: white;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        cursor: pointer;
-        transition: all 0.2s;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+        opacity: 0.7;
+        filter: grayscale(1);
+        transition: all 0.2s ease;
+        text-align: left;
+        width: 100%;
     }
 
-    .achievement-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    .achievement:hover,
+    .achievement:focus {
+        opacity: 0.85;
+        outline: 2px solid var(--text-accent);
+        outline-offset: 2px;
     }
 
-    .achievement-card.unlocked {
-        background: #f8f9fa;
+    .achievement.unlocked {
+        opacity: 1;
+        filter: none;
     }
 
-    .tier-badge {
-        position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
+    .icon {
+        font-size: 2rem;
+        min-width: 2.5rem;
+        height: 2.5rem;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: white;
-        font-weight: bold;
-        font-size: 0.8rem;
     }
 
-    .achievement-card h3 {
-        margin: 0 0 0.5rem 0;
-        padding-right: 2rem;
-        color: #212529;
-        font-size: 1rem;
+    .info {
+        flex: 1;
     }
 
-    .achievement-card p {
-        margin: 0 0 1rem 0;
-        color: #6c757d;
+    .info h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: var(--text-primary);
+    }
+
+    .info p {
+        margin: 0.5rem 0 0;
         font-size: 0.9rem;
-    }
-
-    .reward, .effect {
-        font-size: 0.8rem;
-        color: #495057;
-        margin-top: 0.5rem;
+        color: var(--text-secondary);
     }
 
     .modal-backdrop {
@@ -296,8 +237,8 @@
     }
 
     .modal-content {
-        background: white;
-        border-radius: 0.5rem;
+        background: var(--bg-primary);
+        border-radius: 8px;
         padding: 2rem;
         max-width: 90%;
         width: 500px;
@@ -308,12 +249,12 @@
 
     .close-button {
         position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
+        top: 1rem;
+        right: 1rem;
         font-size: 1.5rem;
         line-height: 1;
         padding: 0.5rem;
-        background: rgba(0, 0, 0, 0.1);
+        background: var(--bg-tertiary);
         border-radius: 50%;
         width: 2rem;
         height: 2rem;
@@ -325,12 +266,13 @@
 
     .close-button:hover,
     .close-button:focus {
-        background: rgba(0, 0, 0, 0.2);
+        background: var(--bg-button);
+        color: var(--text-button);
     }
 
     .modal-title {
         margin-bottom: 1rem;
-        color: #212529;
+        color: var(--text-primary);
     }
 
     .achievement-info {
@@ -351,63 +293,21 @@
     }
 
     .description {
-        color: #495057;
+        color: var(--text-secondary);
         line-height: 1.6;
     }
 
     .progress-bar {
         height: 0.5rem;
-        background: #f8f9fa;
+        background: var(--bg-tertiary);
         border-radius: 0.25rem;
         overflow: hidden;
     }
 
     .progress-fill {
         height: 100%;
-        background: #339af0;
+        background: var(--bg-button);
         transition: width 0.3s ease;
-    }
-
-    .rewards-section {
-        padding: 1rem;
-        background: #f8f9fa;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .rewards-section h3 {
-        margin: 0 0 1rem 0;
-        color: #495057;
-    }
-
-    .rewards-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 1rem;
-    }
-
-    .reward-item {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem;
-        background: white;
-        border-radius: 0.25rem;
-    }
-
-    .reward-item .icon {
-        font-size: 1.2rem;
-    }
-
-    .reward-item .label {
-        color: #6c757d;
-        font-size: 0.9rem;
-    }
-
-    .reward-item .value {
-        color: #212529;
-        font-weight: 500;
     }
 
     @media (max-width: 768px) {
@@ -417,10 +317,7 @@
 
         .modal-content {
             width: 95%;
-        }
-
-        .rewards-grid {
-            grid-template-columns: 1fr;
+            padding: 1.5rem;
         }
     }
 </style>
