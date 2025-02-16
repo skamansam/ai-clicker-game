@@ -1,0 +1,73 @@
+/* src/lib/styles/global.css */
+:root {
+    /* Color variables */
+    --bg-primary: #f9fafb;
+    --bg-secondary: #f3f4f6;
+    --bg-tertiary: #e5e7eb;
+    --bg-input: #ffffff;
+    --bg-button: #3b82f6;
+    --bg-button-hover: #2563eb;
+    
+    --text-primary: #111827;
+    --text-secondary: #4b5563;
+    --text-accent: #3b82f6;
+    --text-button: #ffffff;
+    
+    --border: #d1d5db;
+    --error: #ef4444;
+}
+
+html {
+    background-color: var(--bg-primary);
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+        Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+/* Button reset */
+button {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+    outline: inherit;
+}
+
+/* Input reset */
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+/* Link reset */
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Heading reset */
+h1, h2, h3, h4, h5, h6 {
+    margin: 0;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+/* List reset */
+ul, ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Box sizing */
+*, *::before, *::after {
+    box-sizing: border-box;
+}

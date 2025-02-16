@@ -102,7 +102,7 @@
                                     <div
                                         class="progress-fill"
                                         style="width: {progress}%"
-                                    />
+                                    ></div>
                                     <span class="progress-text">
                                         {formatProgress(progress)}
                                     </span>

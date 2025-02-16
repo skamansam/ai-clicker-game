@@ -1,4 +1,4 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import type { GameState, Upgrade, UserUpgrade } from '$lib/types';
 import { browser } from '$app/environment';
 import { db, auth } from '$lib/firebase';
@@ -30,6 +30,7 @@ function createGameStore() {
             const user = auth.currentUser;
             if (!user) return;
 
+            const store = get({ subscribe });
             const gameStateRef = doc(db, 'game_states', user.uid);
             await setDoc(gameStateRef, {
                 clicks: store.clicks,
@@ -57,6 +58,39 @@ function createGameStore() {
                 clicks: state.clicks + 1,
                 totalClicks: state.totalClicks + 1
             }));
+        },
+        loadGameState: async () => {
+            if (!browser) return;
+            
+            const user = auth.currentUser;
+            if (!user) return;
+
+            try {
+                const gameStateRef = doc(db, 'game_states', user.uid);
+                const gameStateDoc = await getDoc(gameStateRef);
+
+                if (gameStateDoc.exists()) {
+                    const data = gameStateDoc.data();
+                    update(state => ({
+                        ...state,
+                        clicks: data.clicks || 0,
+                        totalClicks: data.totalClicks || 0
+                    }));
+                } else {
+                    // Initialize new game state
+                    await setDoc(gameStateRef, {
+                        clicks: 0,
+                        totalClicks: 0,
+                        lastSaved: new Date()
+                    });
+                }
+
+                // Load upgrades after loading game state
+                await store.loadUpgrades();
+            } catch (error) {
+                console.error('Error loading game state:', error);
+                throw error;
+            }
         },
         purchaseUpgrade: async (upgrade: Upgrade) => {
             if (!browser) return;

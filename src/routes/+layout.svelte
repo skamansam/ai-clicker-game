@@ -4,6 +4,7 @@
     import { authStore } from '$lib/stores/auth';
     import { goto } from '$app/navigation';
     import { page } from '$app/stores';
+    import '$lib/styles/global.css';
 
     // Initialize the auth store
     onMount(() => {
@@ -17,15 +18,3 @@
 </script>
 
 <slot />
-
-<style>
-    :global(html) {
-        background-color: #f9fafb;
-    }
-    
-    :global(body) {
-        margin: 0;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-            Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    }
-</style>
