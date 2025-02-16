@@ -51,15 +51,15 @@
     }
 
     .notification {
-        background: #1f2937;
-        color: white;
+        background: var(--bg-color);
+        color: var(--text-color);
         padding: 1rem;
         border-radius: 0.5rem;
         display: flex;
         align-items: center;
         gap: 1rem;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        border: 1px solid #374151;
+        border: 1px solid var(--border-color);
         width: 100%;
     }
 
@@ -75,7 +75,7 @@
 
     .title {
         font-weight: 600;
-        color: #10b981;
+        color: var(--success-color);
         font-size: 0.875rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -84,7 +84,7 @@
     .name {
         font-size: 1.125rem;
         font-weight: 500;
-        color: #f3f4f6;
+        color: var(--text-color);
         margin-top: 0.25rem;
     }
 </style>

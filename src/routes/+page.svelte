@@ -5,12 +5,14 @@
     import { authStore } from '$lib/stores/auth';
     import { achievementStore } from '$lib/stores/achievements';
     import { prestigeStore } from '$lib/stores/prestige';
+    import { themeStore } from '$lib/stores/theme';
     import ClickerButton from '$lib/components/ClickerButton.svelte';
     import Stats from '$lib/components/Stats.svelte';
     import AchievementNotifications from '$lib/components/AchievementNotifications.svelte';
     import AchievementsModal from '$lib/components/AchievementsModal.svelte';
     import ShopTabs from '$lib/components/ShopTabs.svelte';
     import AuthButton from '$lib/components/AuthButton.svelte';
+    import ThemeToggle from '$lib/components/ThemeToggle.svelte';
     import { browser } from '$app/environment';
 
     let checkInterval: NodeJS.Timeout;
@@ -36,6 +38,9 @@
                     achievementStore.checkAchievements();
                 }
             }, 1000);
+
+            // Set initial theme class
+            document.documentElement.classList.toggle('dark', $themeStore === 'dark');
         }
     });
 
@@ -50,6 +55,7 @@
     <header>
         <h1>Clicker Game</h1>
         <div class="header-actions">
+            <ThemeToggle />
             <button 
                 class="trophy-button" 
                 on:click={() => showAchievements = true}
@@ -87,10 +93,35 @@
 </div>
 
 <style>
+    :global(html) {
+        --bg-color: #f8f9fa;
+        --text-color: #1f2937;
+        --border-color: #e5e7eb;
+        --primary-color: #3b82f6;
+        --primary-hover: #2563eb;
+        --success-color: #10b981;
+        --error-color: #ef4444;
+    }
+
+    :global(html.dark) {
+        --bg-color: #1f2937;
+        --text-color: #f3f4f6;
+        --border-color: #374151;
+        --primary-color: #60a5fa;
+        --primary-hover: #3b82f6;
+        --success-color: #34d399;
+        --error-color: #f87171;
+    }
+
+    :global(body) {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+    }
+
     .game-container {
         min-height: 100vh;
         height: 100vh;
-        background: #f8f9fa;
+        background: var(--bg-color);
         display: flex;
         flex-direction: column;
     }
