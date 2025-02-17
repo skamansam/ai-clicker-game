@@ -1,22 +1,14 @@
 <!-- src/lib/components/UpgradeShop.svelte -->
 <script lang="ts">
     import { gameStore } from '$lib/stores/game';
-    import { fade, scale } from 'svelte/transition';
+    import { formatNumber } from '$lib/utils/format';
+    import type { Upgrade } from '$lib/types';
 
     let upgrades = gameStore.getUpgrades();
-    
-    function formatNumber(num: number): string {
-        if (num >= 1e6) {
-            return (num / 1e6).toFixed(1) + 'M';
-        } else if (num >= 1e3) {
-            return (num / 1e3).toFixed(1) + 'K';
-        }
-        return num.toString();
-    }
 
-    function handleUpgradeClick(upgradeId: string, canAfford: boolean) {
+    function handleUpgradeClick(id: string, canAfford: boolean) {
         if (canAfford) {
-            gameStore.purchaseUpgrade(upgradeId);
+            gameStore.purchaseUpgrade(id);
         }
     }
 </script>
@@ -26,8 +18,8 @@
     
     <div class="upgrade-list">
         {#each upgrades as upgrade (upgrade.id)}
-            {@const userUpgrade = $gameStore.upgrades[upgrade.id] || { 
-                count: 0, 
+            {@const userUpgrade = $gameStore.upgrades[upgrade.id] || {
+                count: 0,
                 cost: upgrade.base_cost,
                 clicksPerSecond: upgrade.clicks_per_second
             }}
@@ -42,10 +34,14 @@
                 <div class="info">
                     <div class="name">{upgrade.name}</div>
                     <div class="description">{upgrade.description}</div>
-                    <div class="cost">{formatNumber(userUpgrade.cost)} clicks</div>
-                    {#if userUpgrade.count > 0}
-                        <div class="owned">Owned: {userUpgrade.count}</div>
-                    {/if}
+                    <div class="stats">
+                        <div class="cost">{formatNumber(userUpgrade.cost)} clicks</div>
+                        <div class="cps">+{formatNumber(upgrade.clicks_per_second)} CPS</div>
+                        {#if userUpgrade.count > 0}
+                            <div class="owned">Owned: {userUpgrade.count}</div>
+                            <div class="total-cps">Total: {formatNumber(userUpgrade.count * upgrade.clicks_per_second)} CPS</div>
+                        {/if}
+                    </div>
                 </div>
                 <button 
                     class="buy-button"
@@ -64,7 +60,6 @@
         height: 100%;
         display: flex;
         flex-direction: column;
-        min-height: 0;
     }
 
     h2 {
@@ -98,6 +93,11 @@
 
     .upgrade:hover {
         border-color: var(--primary-color);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    :global(.dark) .upgrade:hover {
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     }
 
     .icon {
@@ -124,15 +124,36 @@
         opacity: 0.8;
     }
 
-    .cost {
+    .stats {
+        display: grid;
+        grid-template-columns: auto auto;
+        gap: 0.25rem 1rem;
+        margin-top: 0.25rem;
         font-size: 0.875rem;
+    }
+
+    .cost {
         color: var(--primary-color);
         font-weight: 500;
+        grid-column: 1;
+    }
+
+    .cps {
+        color: var(--success-color);
+        font-weight: 500;
+        grid-column: 2;
     }
 
     .owned {
-        font-size: 0.875rem;
+        color: var(--text-color);
+        opacity: 0.8;
+        grid-column: 1;
+    }
+
+    .total-cps {
         color: var(--success-color);
+        font-weight: 500;
+        grid-column: 2;
     }
 
     .buy-button {
@@ -143,13 +164,14 @@
         color: white;
         font-weight: 500;
         cursor: pointer;
-        transition: background-color 0.2s ease;
+        transition: all 0.2s ease;
         align-self: center;
         white-space: nowrap;
     }
 
     .buy-button:hover:not(:disabled) {
         background: var(--primary-hover);
+        transform: translateY(-1px);
     }
 
     .buy-button:disabled {
@@ -158,36 +180,30 @@
         opacity: 0.7;
     }
 
-    /* Dark mode */
-    :global(.dark) .upgrade {
-        background: var(--gray-800);
+    /* Scrollbar styling */
+    .upgrade-list::-webkit-scrollbar {
+        width: 8px;
     }
 
-    :global(.dark) .name {
-        color: var(--text-primary);
+    .upgrade-list::-webkit-scrollbar-track {
+        background: var(--bg-color);
+        border-radius: 4px;
     }
 
-    :global(.dark) .description {
-        color: var(--text-secondary);
+    .upgrade-list::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 4px;
     }
 
-    :global(.dark) .cost {
-        color: var(--primary-500);
+    .upgrade-list::-webkit-scrollbar-thumb:hover {
+        background: var(--primary-color);
     }
 
-    :global(.dark) .buy-button {
-        background: var(--primary-500);
+    :global(.dark) .upgrade-list::-webkit-scrollbar-track {
+        background: var(--widget-bg-color);
     }
 
-    :global(.dark) .buy-button:hover {
-        background: var(--primary-600);
-    }
-
-    :global(.dark) .buy-button:disabled {
-        background: var(--gray-600);
-    }
-
-    :global(.dark) .owned {
-        color: var(--success-400);
+    :global(.dark) .upgrade-list::-webkit-scrollbar-thumb {
+        background: var(--border-color);
     }
 </style>
