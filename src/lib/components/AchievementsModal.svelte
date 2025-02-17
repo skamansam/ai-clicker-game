@@ -56,6 +56,9 @@
     
     $: unlockedMap = new Map($achievementStore.unlockedAchievements.map(a => [a.id, a]));
 
+    $: unlockedCount = $achievementStore.unlockedAchievements.length;
+    $: totalCount = $achievementStore.achievements.length;
+
     function handleKeyDown(event: KeyboardEvent) {
         if (event.key === 'Escape') {
             dispatch('close');
@@ -97,49 +100,52 @@
     function cancelReset() {
         showResetConfirm = false;
     }
+
+    function handleClose() {
+        dispatch('close');
+    }
 </script>
 
 {#if show}
 <div 
-    class="modal-backdrop"
+    class="modal-overlay"
     on:click={handleBackdropClick}
     on:keydown={handleKeyDown}
     transition:fade={{ duration: 200 }}
 >
     <div 
-        class="modal-content"
+        class="modal"
         transition:scale={{ duration: 200, start: 0.95 }}
     >
         <div class="modal-header">
             <h2>Achievements</h2>
-            <div class="filters">
+            <div class="header-controls">
                 <select 
                     class="category-select"
                     bind:value={selectedCategory}
-                    aria-label="Filter by category"
+                    disabled={$achievementStore.loading}
                 >
+                    <option value="all">All Categories</option>
                     {#each categories as category}
-                        <option value={category}>
-                            {getCategoryIcon(category)} {formatCategory(category)}
-                        </option>
+                        <option value={category}>{formatCategory(category)}</option>
                     {/each}
                 </select>
-            </div>
-            <div class="progress">
-                <span class="count">{$achievementStore.unlockedAchievements.length}</span>
-                <span class="separator">/</span>
-                <span class="total">{$achievementStore.achievements.length}</span>
-            </div>
-            {#if $authStore}
+                
+                <div class="progress">
+                    <span>{unlockedCount}</span>
+                    <span class="separator">/</span>
+                    <span>{totalCount}</span>
+                </div>
+
                 <button 
                     class="reset-button" 
                     on:click={handleReset}
-                    title="Reset all achievement progress"
+                    disabled={$achievementStore.loading || unlockedCount === 0}
                 >
                     Reset
                 </button>
-            {/if}
-            <button class="close-button" on:click={() => dispatch('close')}>×</button>
+            </div>
+            <button class="close-button" on:click={handleClose}>×</button>
         </div>
 
         <div class="modal-body">
@@ -170,21 +176,16 @@
                     <p>No achievements found in {formatCategory(selectedCategory).toLowerCase()}.</p>
                 </div>
             {:else}
-                <div class="achievements-grid">
+                <div class="achievement-list">
                     {#each filteredAchievements as achievement (achievement.id)}
                         <div 
-                            class={`achievement-card ${isUnlocked(achievement.id) ? 'achieved' : 'locked'}`}
+                            class={`achievement ${isUnlocked(achievement.id) ? 'unlocked' : 'locked'}`}
                             transition:scale|local
                         >
-                            <div class="icon-wrapper">
-                                <div class="icon">{achievement.icon || getCategoryIcon(achievement.category)}</div>
-                                {#if isUnlocked(achievement.id)}
-                                    <div class="check-mark">✓</div>
-                                {/if}
-                            </div>
+                            <div class="achievement-icon">{achievement.icon || getCategoryIcon(achievement.category)}</div>
                             <div class="achievement-info">
-                                <h3>{achievement.name}</h3>
-                                <p>{achievement.description}</p>
+                                <h3 class="achievement-name">{achievement.name}</h3>
+                                <p class="achievement-description">{achievement.description}</p>
                             </div>
                         </div>
                     {/each}
@@ -196,445 +197,228 @@
 {/if}
 
 <style>
-    .modal-backdrop {
+    .modal-overlay {
         position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: grid;
-        place-items: center;
-        padding: 2rem;
-        z-index: 1000;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+        backdrop-filter: blur(4px);
     }
 
-    .modal-content {
-        background: white;
-        border-radius: 0.75rem;
-        width: 100%;
-        max-width: 900px;
-        max-height: 85vh;
+    .modal {
+        background: var(--widget-bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
+        padding: 2rem;
+        width: 90%;
+        max-width: 800px;
+        max-height: 80vh;
+        overflow-y: auto;
+        position: relative;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+        margin: 0 0 1.5rem 0;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .achievement-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1rem;
+    }
+
+    .achievement {
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 1rem;
+        transition: all 0.2s ease;
+    }
+
+    .achievement.unlocked {
+        border-color: var(--success-color);
+    }
+
+    .achievement-icon {
+        font-size: 2rem;
+        width: 2.5rem;
+        height: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .achievement-info {
         display: flex;
         flex-direction: column;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        gap: 0.25rem;
+    }
+
+    .achievement-name {
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .achievement-description {
+        font-size: 0.875rem;
+        color: var(--text-color);
+        opacity: 0.8;
+    }
+
+    .achievement-progress {
+        font-size: 0.875rem;
+        color: var(--primary-color);
+        font-weight: 500;
+        margin-top: 0.25rem;
+    }
+
+    .achievement.locked {
+        opacity: 0.7;
+    }
+
+    .achievement.locked .achievement-icon {
+        filter: grayscale(1);
+    }
+
+    .close-button {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--text-color);
+        opacity: 0.7;
+        transition: opacity 0.2s ease;
+        padding: 0.5rem;
+        line-height: 1;
+        border-radius: 0.5rem;
+    }
+
+    .close-button:hover {
+        opacity: 1;
+        background: var(--bg-color);
     }
 
     .modal-header {
         display: flex;
         align-items: center;
         gap: 1rem;
-        padding: 1.25rem;
-        border-bottom: 1px solid var(--border-color, #e9ecef);
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
     }
 
-    .modal-header h2 {
-        margin: 0;
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: var(--text-primary);
-    }
-
-    .filters {
+    .header-controls {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 1rem;
+        margin-left: auto;
     }
 
     .category-select {
-        padding: 0.375rem 2rem 0.375rem 0.75rem;
-        border: 1px solid var(--border-color, #e9ecef);
+        padding: 0.5rem 2rem 0.5rem 0.75rem;
+        border: 1px solid var(--border-color);
         border-radius: 0.5rem;
-        background: white;
-        color: var(--text-primary);
+        background: var(--widget-bg-color);
+        color: var(--text-color);
         font-size: 0.875rem;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.2s ease;
+        min-width: 150px;
         appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M8 10.5l-4-4h8l-4 4z'/%3E%3C/svg%3E");
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
         background-repeat: no-repeat;
-        background-position: right 0.75rem center;
-        min-width: 200px;
+        background-position: right 0.5rem center;
+        background-size: 1rem;
     }
 
-    .category-select:hover {
-        border-color: var(--primary-400);
+    .category-select:hover:not(:disabled) {
+        border-color: var(--primary-color);
     }
 
-    .category-select:focus {
-        outline: none;
-        border-color: var(--primary-500);
-        box-shadow: 0 0 0 2px var(--primary-100);
+    .category-select:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
     }
 
     .progress {
-        margin-left: auto;
-        padding: 0.375rem 1rem;
-        background: var(--primary-100);
-        color: var(--primary-700);
-        border-radius: 1rem;
-        font-weight: 600;
         display: flex;
         align-items: center;
         gap: 0.25rem;
-    }
-
-    .progress .separator {
-        opacity: 0.5;
-    }
-
-    .close-button {
-        background: none;
-        border: none;
-        font-size: 1.5rem;
-        line-height: 1;
-        padding: 0.25rem;
-        cursor: pointer;
-        color: var(--text-secondary);
-        transition: color 0.2s;
-    }
-
-    .close-button:hover {
-        color: var(--text-primary);
-    }
-
-    .modal-body {
-        padding: 1.25rem;
-        overflow-y: auto;
-    }
-
-    .loading, .error, .empty {
-        text-align: center;
-        padding: 2rem;
-        color: var(--text-secondary);
-        font-size: 0.875rem;
-    }
-
-    .empty-icon {
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
-        opacity: 0.5;
-    }
-
-    .error {
-        color: var(--error-600);
-    }
-
-    .achievements-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 1rem;
-    }
-
-    .achievement-card {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        background-color: #1f2937;
-        transition: all 0.2s ease-in-out;
-        cursor: pointer;
-    }
-
-    .achievement-card:hover {
-        transform: translateY(-2px);
-    }
-
-    .achievement-card.achieved {
-        background-color: #374151;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-
-    .achievement-card.locked {
-        opacity: 0.6;
-    }
-
-    .achievement-info h3 {
-        margin: 0;
-        font-size: 1rem;
-        font-weight: 600;
-        color: #e5e7eb;
-    }
-
-    .achievement-info p {
-        margin: 0.25rem 0 0;
-        font-size: 0.875rem;
-        color: #9ca3af;
-    }
-
-    .achievement-card.achieved .achievement-info h3 {
-        color: #f3f4f6;
-    }
-
-    .achievement-card.achieved .achievement-info p {
-        color: #d1d5db;
-    }
-
-    .icon-wrapper {
-        position: relative;
-        min-width: 3rem;
-        height: 3rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .icon {
-        font-size: 1.75rem;
-    }
-
-    .check-mark {
-        position: absolute;
-        bottom: -0.25rem;
-        right: -0.25rem;
-        background: #10b981;
-        color: white;
-        width: 1.25rem;
-        height: 1.25rem;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.75rem;
-        font-weight: bold;
-    }
-
-    .info {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .info h3 {
-        margin: 0;
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-primary);
-    }
-
-    .category-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        font-size: 0.75rem;
-        color: var(--primary-600);
-        background: var(--primary-50);
-        padding: 0.25rem 0.5rem;
-        border-radius: 1rem;
-        margin: 0.25rem 0;
-    }
-
-    .tag-icon {
-        font-size: 1em;
-    }
-
-    .info p {
-        margin: 0.25rem 0 0;
-        font-size: 0.875rem;
-        color: var(--text-secondary);
-        line-height: 1.4;
-    }
-
-    .unlock-date {
-        font-size: 0.75rem;
-        color: var(--success-600);
         padding: 0.5rem 1rem;
-        border-top: 1px solid var(--gray-200);
-        background: var(--success-50);
-        border-bottom-left-radius: 0.75rem;
-        border-bottom-right-radius: 0.75rem;
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        color: var(--text-color);
+        font-weight: 500;
+        font-size: 0.875rem;
     }
 
-    .achievement.unlocked {
-        background: white;
-        border-color: var(--success-200);
-    }
-
-    .achievement.unlocked .icon {
-        border-color: var(--success-200);
-        background: var(--success-50);
+    .separator {
+        opacity: 0.5;
     }
 
     .reset-button {
-        background: #ef4444;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
         border: none;
+        background: var(--error-color);
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
         font-size: 0.875rem;
-        font-weight: 500;
-        line-height: 1;
-        padding: 0.5rem 1rem;
-        cursor: pointer;
-        color: white;
-        transition: all 0.2s;
-        border-radius: 0.375rem;
-        margin-left: 0.5rem;
     }
 
-    .reset-button:hover {
-        background: #dc2626;
+    .reset-button:hover:not(:disabled) {
+        filter: brightness(1.1);
+        transform: translateY(-1px);
     }
 
-    .reset-button:active {
-        background: #b91c1c;
+    .reset-button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
     }
 
-    .reset-confirm {
-        position: absolute;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.75);
-        display: grid;
-        place-items: center;
-        padding: 2rem;
-        z-index: 10;
+    /* Scrollbar styling */
+    .modal::-webkit-scrollbar {
+        width: 8px;
     }
 
-    .reset-confirm-content {
-        background: white;
-        padding: 2rem;
-        border-radius: 1rem;
-        max-width: 400px;
-        text-align: center;
+    .modal::-webkit-scrollbar-track {
+        background: var(--bg-color);
+        border-radius: 4px;
     }
 
-    .reset-confirm-content h3 {
-        margin: 0 0 1rem;
-        font-size: 1.5rem;
-        color: var(--error-600);
+    .modal::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 4px;
     }
 
-    .reset-confirm-content p {
-        margin: 0 0 1.5rem;
-        color: var(--text-secondary);
-        line-height: 1.5;
+    .modal::-webkit-scrollbar-thumb:hover {
+        background: var(--primary-color);
     }
 
-    .reset-confirm-actions {
-        display: flex;
-        gap: 1rem;
-        justify-content: center;
-    }
-
-    .reset-confirm-button {
-        background: #ef4444;
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 0.375rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .reset-confirm-button:hover {
-        background: #dc2626;
-    }
-
-    .reset-cancel-button {
-        background: var(--gray-100);
-        color: var(--text-primary);
-        border: 1px solid var(--gray-200);
-        padding: 0.5rem 1rem;
-        border-radius: 0.375rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .reset-cancel-button:hover {
-        background: var(--gray-200);
-    }
-
-    /* Dark mode */
-    :global(.dark) .modal-content {
-        background: var(--gray-800);
-    }
-
-    :global(.dark) .modal-header {
-        border-color: var(--gray-700);
-    }
-
-    :global(.dark) .category-select {
-        background-color: var(--gray-700);
-        border-color: var(--gray-600);
-        color: var(--gray-100);
-    }
-
-    :global(.dark) .category-select:hover {
-        border-color: var(--primary-500);
-    }
-
-    :global(.dark) .category-select:focus {
-        border-color: var(--primary-400);
-        box-shadow: 0 0 0 2px var(--primary-900);
-    }
-
-    :global(.dark) .category-tag {
-        background: var(--primary-900);
-        color: var(--primary-300);
-    }
-
-    :global(.dark) .progress {
-        background: var(--primary-900);
-        color: var(--primary-300);
+    :global(.dark) .modal {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     }
 
     :global(.dark) .achievement {
-        background: var(--gray-900);
-    }
-
-    :global(.dark) .achievement.unlocked {
-        background: var(--gray-800);
-        border-color: var(--success-900);
-    }
-
-    :global(.dark) .icon {
-        background: var(--gray-800);
-        border-color: var(--gray-700);
-    }
-
-    :global(.dark) .achievement.unlocked .icon {
-        border-color: var(--success-700);
-        background: var(--success-900);
-    }
-
-    :global(.dark) .unlock-date {
-        color: var(--success-400);
-        background: var(--success-900);
-        border-color: var(--gray-700);
-    }
-
-    :global(.dark) .loading,
-    :global(.dark) .empty {
-        color: var(--gray-400);
-    }
-
-    :global(.dark) .reset-button {
-        background: #dc2626;
-    }
-
-    :global(.dark) .reset-button:hover {
-        background: #ef4444;
-    }
-
-    :global(.dark) .reset-button:active {
-        background: #f87171;
-    }
-
-    :global(.dark) .reset-confirm-content {
-        background: var(--gray-800);
-    }
-
-    :global(.dark) .reset-confirm-button {
-        background: #ef4444;
-    }
-
-    :global(.dark) .reset-confirm-button:hover {
-        background: #dc2626;
-    }
-
-    :global(.dark) .reset-cancel-button {
-        background: var(--gray-700);
-        border-color: var(--gray-600);
-        color: var(--gray-100);
-    }
-
-    :global(.dark) .reset-cancel-button:hover {
-        background: var(--gray-600);
+        background: var(--widget-bg-color);
     }
 </style>
