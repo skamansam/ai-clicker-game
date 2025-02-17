@@ -4,7 +4,6 @@
     import { gameStore } from '$lib/stores/game';
     import { authStore } from '$lib/stores/auth';
     import { achievementStore } from '$lib/stores/achievements';
-    import { prestigeStore } from '$lib/stores/prestige';
     import { themeStore } from '$lib/stores/theme';
     import ClickerButton from '$lib/components/ClickerButton.svelte';
     import Stats from '$lib/components/Stats.svelte';
@@ -26,8 +25,7 @@
         if ($authStore) {
             await Promise.all([
                 gameStore.loadGameState(),
-                achievementStore.loadUserAchievements(),
-                prestigeStore.loadPrestigeData()
+                achievementStore.loadUserAchievements()
             ]);
         }
 

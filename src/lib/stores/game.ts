@@ -4,6 +4,7 @@ import { browser } from '$app/environment';
 import { db, auth } from '$lib/firebase';
 import { collection, doc, setDoc, getDoc, updateDoc, increment, query, where, getDocs } from 'firebase/firestore';
 import { defaultUpgrades } from '$lib/data/upgrades';
+import { prestigeStore } from './prestige';
 
 interface GameStore {
     clicks: number;
@@ -109,8 +110,30 @@ function createGameStore() {
         autoClickInterval = setInterval(() => {
             update(state => {
                 const autoClicksPerSecond = state.clicksPerSecond - state.manualClicksPerSecond;
-                const newClicks = state.clicks + autoClicksPerSecond;
-                const newTotalClicks = state.totalClicks + autoClicksPerSecond;
+                const store = get(prestigeStore);
+                if (!store?.upgrades) {
+                    return {
+                        ...state,
+                        clicks: state.clicks + autoClicksPerSecond,
+                        totalClicks: state.totalClicks + autoClicksPerSecond,
+                        dirty: true
+                    };
+                }
+                
+                // Apply time warp to auto-clickers
+                const timeWarpMultiplier = Math.pow(1.5, store.upgrades['time_warp'] || 0);
+                const boostedAutoClicks = autoClicksPerSecond * timeWarpMultiplier;
+
+                // Add quantum engine passive clicks
+                const quantumLevel = store.upgrades['quantum_engine'] || 0;
+                const passiveClicks = quantumLevel;
+
+                // Apply prestige multiplier to everything except quantum engine
+                const totalClicks = (boostedAutoClicks * (store.multiplier || 1)) + passiveClicks;
+                
+                const newClicks = state.clicks + totalClicks;
+                const newTotalClicks = state.totalClicks + totalClicks;
+
                 return {
                     ...state,
                     clicks: newClicks,
@@ -145,18 +168,44 @@ function createGameStore() {
 
     return {
         subscribe,
+
         click: () => {
             if (!browser) return;
             
             recentClicks.push(Date.now());
+
+            const store = get(prestigeStore);
+            const clickPower = store?.upgrades ? Math.pow(2, store.upgrades['golden_mouse'] || 0) : 1;
             
             update(state => ({
                 ...state,
-                clicks: state.clicks + 1,
-                totalClicks: state.totalClicks + 1,
+                clicks: state.clicks + clickPower,
+                totalClicks: state.totalClicks + clickPower,
                 dirty: true
             }));
         },
+
+        reset: () => {
+            if (!browser) return;
+            
+            update(state => ({
+                ...state,
+                clicks: 0,
+                totalClicks: 0,
+                clicksPerSecond: 0,
+                manualClicksPerSecond: 0,
+                upgrades: {},
+                dirty: true
+            }));
+
+            // Clear recent clicks
+            recentClicks = [];
+            
+            // Save to localStorage
+            const state = get({ subscribe });
+            saveToLocalStorage(state);
+        },
+
         loadGameState: async () => {
             if (!browser) return;
             
