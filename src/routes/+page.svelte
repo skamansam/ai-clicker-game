@@ -93,6 +93,12 @@
 </div>
 
 <style>
+    :global(body) {
+        margin: 0;
+        height: 100vh;
+        overflow: hidden;
+    }
+
     :global(html) {
         --bg-color: #f8f9fa;
         --text-color: #1f2937;
@@ -114,17 +120,16 @@
     }
 
     .container {
-        min-height: 100vh;
+        height: 100vh;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
     }
 
     .header {
         background: var(--bg-color);
         border-bottom: 1px solid var(--border-color);
         padding: 1rem;
-        position: sticky;
-        top: 0;
         z-index: 10;
         transition: background-color 0.3s ease, border-color 0.3s ease;
     }
@@ -157,6 +162,41 @@
         justify-self: center;
     }
 
+    .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 2rem;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .game-container {
+        flex: 1;
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        width: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .clicker-section {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+
+    .shop-section {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
     .trophy-button {
         display: flex;
         align-items: center;
@@ -181,30 +221,5 @@
 
     .achievement-count {
         font-size: 0.875rem;
-    }
-
-    .main-content {
-        flex: 1;
-        padding: 2rem;
-    }
-
-    .game-container {
-        max-width: 1200px;
-        margin: 0 auto;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 2rem;
-        align-items: start;
-    }
-
-    .clicker-section {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 400px;
-    }
-
-    .shop-section {
-        height: 600px;
     }
 </style>
