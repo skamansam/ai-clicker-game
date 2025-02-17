@@ -51,42 +51,41 @@
     });
 </script>
 
-<div class="game-container">
-    <header>
-        <h1>Clicker Game</h1>
-        <div class="header-right">
-            <ThemeToggle />
-            <button 
-                class="trophy-button" 
-                on:click={() => showAchievements = true}
-                title="View Achievements"
-            >
-                <span class="trophy-icon">🏆</span>
-                <span class="achievement-count">
-                    {$achievementStore.unlockedAchievements.length}/{$achievementStore.achievements.length}
-                </span>
-            </button>
-            <AuthButton />
+<div class="container">
+    <header class="header">
+        <div class="header-content">
+            <h1>Clicker Game</h1>
+            <Stats />
+            <div class="header-right">
+                <button 
+                    class="trophy-button" 
+                    on:click={() => showAchievements = true}
+                    title="View Achievements"
+                >
+                    <span class="trophy-icon">🏆</span>
+                    <span class="achievement-count">
+                        {$achievementStore.unlockedAchievements.length}/{$achievementStore.achievements.length}
+                    </span>
+                </button>
+                <ThemeToggle />
+                <AuthButton />
+            </div>
         </div>
     </header>
 
-    <AchievementNotifications />
-
-    <main>
-        <div class="game-content">
-            <div class="game-layout">
-                <div class="game-section">
-                    <Stats />
-                    <div class="clicker-section">
-                        <ClickerButton />
-                    </div>
-                </div>
-                <div class="side-section">
-                    <ShopTabs />
-                </div>
+    <main class="main-content">
+        <div class="game-container">
+            <div class="clicker-section">
+                <ClickerButton />
+            </div>
+            
+            <div class="shop-section">
+                <ShopTabs />
             </div>
         </div>
     </main>
+
+    <AchievementNotifications />
 
     {#if showAchievements}
         <AchievementsModal bind:show={showAchievements} on:close={() => showAchievements = false} />
@@ -114,21 +113,29 @@
         --error-color: #f87171;
     }
 
-    .game-container {
+    .container {
         min-height: 100vh;
-        height: 100vh;
         display: flex;
         flex-direction: column;
     }
 
-    header {
-        padding: 1rem;
-        border-bottom: 1px solid var(--border-color);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    .header {
         background: var(--bg-color);
-        transition: border-color 0.3s ease;
+        border-bottom: 1px solid var(--border-color);
+        padding: 1rem;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    .header-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 2rem;
     }
 
     h1 {
@@ -136,68 +143,18 @@
         font-size: 1.5rem;
         font-weight: 600;
         color: var(--text-color);
+        white-space: nowrap;
     }
 
     .header-right {
         display: flex;
+        align-items: center;
         gap: 1rem;
-        align-items: center;
+        white-space: nowrap;
     }
 
-    button {
-        padding: 0.5rem 1rem;
-        border-radius: 0.5rem;
-        border: none;
-        background: var(--primary-color);
-        color: white;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background-color 0.2s ease;
-    }
-
-    button:hover {
-        background: var(--primary-hover);
-    }
-
-    main {
-        flex: 1;
-        padding: 2rem;
-        display: flex;
-        justify-content: center;
-        background: var(--bg-color);
-        transition: background-color 0.3s ease;
-        min-height: 0;
-    }
-
-    .game-content {
-        max-width: 1200px;
-        width: 100%;
-        height: 100%;
-    }
-
-    .game-layout {
-        display: grid;
-        grid-template-columns: 1fr 300px;
-        gap: 2rem;
-        height: 100%;
-    }
-
-    .game-section {
-        display: flex;
-        flex-direction: column;
-        gap: 2rem;
-    }
-
-    .clicker-section {
-        flex: 1;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .side-section {
-        height: 100%;
-        overflow-y: auto;
+    :global(.header-content > .stats) {
+        justify-self: center;
     }
 
     .trophy-button {
@@ -224,5 +181,30 @@
 
     .achievement-count {
         font-size: 0.875rem;
+    }
+
+    .main-content {
+        flex: 1;
+        padding: 2rem;
+    }
+
+    .game-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+
+    .clicker-section {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 400px;
+    }
+
+    .shop-section {
+        height: 600px;
     }
 </style>
