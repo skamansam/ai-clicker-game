@@ -1,16 +1,25 @@
-# 🎮 AI Clicker Game
+# Quantum Shield
 
-A modern, engaging clicker game built with SvelteKit and Firebase. Click your way through achievements, unlock upgrades, and compete with friends in this addictive incremental game!
+Earth's magnetic field is collapsing, and you are humanity's last hope! As the operator of the experimental Quantum Core, your mission is to generate a planetary shield by stabilizing quantum fields through precise resonance adjustments.
 
-## 🌟 Features
+## The Story
 
-- 🔄 Real-time click tracking and state management
-- 🏆 Achievement system with multiple categories
-- ⚡ Upgrades to boost your clicking power
-- 📈 Prestige system for long-term progression
-- 🔥 Combo system for chain achievements
-- 🎨 Modern, responsive UI
-- 🔐 Firebase authentication and data persistence
+In the year 2157, Earth faces an unprecedented crisis - our magnetic field is failing, leaving us exposed to deadly solar radiation. The Quantum Core project represents humanity's last chance for survival. As the Core's operator, you must:
+
+- Maintain quantum field stability through manual resonance adjustments
+- Develop automated systems to amplify your efforts
+- Unlock powerful upgrades like the Golden Mouse and Time Warp
+- Perform strategic quantum resets to increase overall efficiency
+- Save humanity and potentially help other dimensions in crisis
+
+## Features
+
+- Engaging sci-fi story that unfolds as you progress
+- Multiple upgrade paths and strategic choices
+- Prestige system with powerful permanent bonuses
+- Beautiful, responsive UI with dark mode support
+- Achievement system to track your progress
+- Cloud save support
 
 ## 🚀 Getting Started
 
@@ -235,7 +244,7 @@ src/
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT
 
 ## 🙏 Acknowledgments
 

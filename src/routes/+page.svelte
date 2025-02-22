@@ -12,6 +12,7 @@
     import ShopTabs from '$lib/components/ShopTabs.svelte';
     import AuthButton from '$lib/components/AuthButton.svelte';
     import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+    import StoryLog from '$lib/components/StoryLog.svelte';
     import { browser } from '$app/environment';
 
     let checkInterval: NodeJS.Timeout;
@@ -52,17 +53,15 @@
 <div class="container">
     <header class="header">
         <div class="header-content">
-            <h1>Clicker Game</h1>
-            <Stats />
-            <div class="header-right">
+            <h1>Quantum Shield</h1>
+            <div class="header-controls">
                 <button 
                     class="trophy-button" 
                     on:click={() => showAchievements = true}
-                    title="View Achievements"
                 >
-                    <span class="trophy-icon">🏆</span>
+                    🏆
                     <span class="achievement-count">
-                        {$achievementStore.unlockedAchievements.length}/{$achievementStore.achievements.length}
+                        {$achievementStore.unlockedAchievements.length} / {$achievementStore.achievements.length}
                     </span>
                 </button>
                 <ThemeToggle />
@@ -73,10 +72,15 @@
 
     <main class="main-content">
         <div class="game-container">
-            <div class="clicker-section">
-                <ClickerButton />
+            <div class="main-section">
+                <div class="story-section">
+                    <StoryLog />
+                </div>
+                <div class="clicker-section">
+                    <ClickerButton />
+                    <Stats />
+                </div>
             </div>
-            
             <div class="shop-section">
                 <ShopTabs />
             </div>
@@ -105,6 +109,7 @@
         --primary-hover: #2563eb;
         --success-color: #10b981;
         --error-color: #ef4444;
+        --widget-bg-color: #f3f4f6;
     }
 
     :global(html.dark) {
@@ -115,6 +120,7 @@
         --primary-hover: #3b82f6;
         --success-color: #34d399;
         --error-color: #f87171;
+        --widget-bg-color: #2f3339;
     }
 
     .container {
@@ -125,9 +131,11 @@
     }
 
     .header {
-        background: var(--bg-color);
+        background: var(--widget-bg-color);
         border-bottom: 1px solid var(--border-color);
         padding: 1rem;
+        position: sticky;
+        top: 0;
         z-index: 10;
         transition: background-color 0.3s ease, border-color 0.3s ease;
     }
@@ -135,10 +143,10 @@
     .header-content {
         max-width: 1200px;
         margin: 0 auto;
-        display: grid;
-        grid-template-columns: auto 1fr auto;
+        display: flex;
+        justify-content: space-between;
         align-items: center;
-        gap: 2rem;
+        gap: 1rem;
     }
 
     h1 {
@@ -149,15 +157,31 @@
         white-space: nowrap;
     }
 
-    .header-right {
+    .header-controls {
         display: flex;
         align-items: center;
         gap: 1rem;
-        white-space: nowrap;
     }
 
-    :global(.header-content > .stats) {
-        justify-self: center;
+    .trophy-button {
+        background: none;
+        border: none;
+        color: var(--text-color);
+        font-size: 1.25rem;
+        cursor: pointer;
+        padding: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: transform 0.2s ease;
+    }
+
+    .trophy-button:hover {
+        transform: scale(1.1);
+    }
+
+    .achievement-count {
+        font-size: 0.875rem;
     }
 
     .main-content {
@@ -170,54 +194,39 @@
     }
 
     .game-container {
-        flex: 1;
-        max-width: 1200px;
-        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+        padding: 2rem;
+        height: 100%;
+        overflow-y: auto;
+    }
+
+    .main-section {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 2rem;
-        width: 100%;
-        min-height: 0;
-        overflow: hidden;
+        align-items: start;
+    }
+
+    .story-section {
+        height: 100%;
     }
 
     .clicker-section {
         display: flex;
-        justify-content: center;
+        flex-direction: column;
+        gap: 2rem;
         align-items: center;
-        overflow: hidden;
     }
 
     .shop-section {
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
+        flex: 1;
     }
 
-    .trophy-button {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem 0.75rem;
-        background: var(--primary-50);
-        border: none;
-        border-radius: 0.5rem;
-        color: var(--primary-700);
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .trophy-button:hover {
-        background: var(--primary-100);
-    }
-
-    .trophy-icon {
-        font-size: 1.25rem;
-    }
-
-    .achievement-count {
-        font-size: 0.875rem;
+    @media (max-width: 768px) {
+        .main-section {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
