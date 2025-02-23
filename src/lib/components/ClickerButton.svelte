@@ -17,7 +17,7 @@
         
         // Trigger pulse animation
         pulseActive = true;
-        setTimeout(() => pulseActive = false, 300); // Reset after animation
+        setTimeout(() => pulseActive = false, 1200); // Reset after animation
     }
 </script>
 
@@ -106,7 +106,7 @@
             rgba(147, 197, 253, 0.2) 40%,
             transparent 50%
         );
-        animation: pulse-inward 0.8s ease-out forwards;
+        animation: pulse-inward 1.2s ease-out forwards;
     }
 
     @keyframes rotate {
@@ -124,7 +124,7 @@
             opacity: 1;
         }
         100% {
-            transform: scale(-0.5);
+            transform: scale(0.0);
             opacity: 0;
         }
     }
