@@ -58,6 +58,7 @@
                 <button 
                     class="trophy-button" 
                     on:click={() => showAchievements = true}
+                    title="View Mission Accomplishments"
                 >
                     🏆
                     <span class="achievement-count">
