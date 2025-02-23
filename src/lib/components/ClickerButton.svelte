@@ -2,6 +2,7 @@
 <script lang="ts">
     import { gameStore } from '$lib/stores/game';
     import { spring } from 'svelte/motion';
+    import { onMount, onDestroy } from 'svelte';
     
     const scale = spring(1, {
         stiffness: 0.2,
@@ -9,16 +10,47 @@
     });
 
     let pulseActive = false;
+    let pulseInterval: NodeJS.Timeout | null = null;
+    const PULSE_DURATION = 2000; // Duration of one pulse animation in ms
+
+    function triggerPulse() {
+        pulseActive = true;
+        setTimeout(() => pulseActive = false, PULSE_DURATION);
+    }
 
     function handleClick() {
         gameStore.click();
         scale.set(0.95);
         setTimeout(() => scale.set(1), 50);
-        
-        // Trigger pulse animation
-        pulseActive = true;
-        setTimeout(() => pulseActive = false, 1200); // Reset after animation
+        triggerPulse();
     }
+
+    onMount(() => {
+        // Set up interval to check auto-click rate and animate accordingly
+        pulseInterval = setInterval(() => {
+            const autoClicksPerSecond = $gameStore.clicksPerSecond - $gameStore.manualClicksPerSecond;
+            
+            if (autoClicksPerSecond > 0) {
+                const timeBetweenClicks = 1000 / autoClicksPerSecond;
+                
+                // If clicks are happening faster than animation duration, keep pulse always active
+                if (timeBetweenClicks < PULSE_DURATION) {
+                    pulseActive = true;
+                } else {
+                    // Otherwise, trigger individual pulses at the auto-click rate
+                    triggerPulse();
+                }
+            } else {
+                pulseActive = false;
+            }
+        }, 100); // Check every 100ms for smooth transitions
+    });
+
+    onDestroy(() => {
+        if (pulseInterval) {
+            clearInterval(pulseInterval);
+        }
+    });
 </script>
 
 <button
@@ -106,7 +138,7 @@
             rgba(147, 197, 253, 0.2) 40%,
             transparent 50%
         );
-        animation: pulse-inward 1.2s ease-out forwards;
+        animation: pulse-inward 2s ease-out infinite;
     }
 
     @keyframes rotate {
@@ -124,7 +156,7 @@
             opacity: 1;
         }
         100% {
-            transform: scale(0.0);
+            transform: scale(0);
             opacity: 0;
         }
     }
