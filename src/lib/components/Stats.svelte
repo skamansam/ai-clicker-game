@@ -20,7 +20,7 @@
     </div>
     <div class="stat-item">
         <h3>Clicks Per Second</h3>
-        <p>{formatNumber($gameStore.clicksPerSecond)}</p>
+        <p>{formatNumber($gameStore.clicksPerSecond.toFixed(1))}</p>
     </div>
     <div class="stat-item">
         <h3>Current Clicks</h3>

@@ -36,10 +36,10 @@
                     <div class="description">{upgrade.description}</div>
                     <div class="stats">
                         <div class="cost">{formatNumber(userUpgrade.cost)} clicks</div>
-                        <div class="cps">+{formatNumber(upgrade.clicks_per_second)} CPS</div>
+                        <div class="upgrade-effect">+{upgrade.clicks_per_second.toFixed(1)} CPS</div>
                         {#if userUpgrade.count > 0}
                             <div class="owned">Owned: {userUpgrade.count}</div>
-                            <div class="total-cps">Total: {formatNumber(userUpgrade.count * upgrade.clicks_per_second)} CPS</div>
+                            <div class="total-cps">Total: {(userUpgrade.count * upgrade.clicks_per_second).toFixed(1)} CPS</div>
                         {/if}
                     </div>
                 </div>
@@ -138,7 +138,7 @@
         grid-column: 1;
     }
 
-    .cps {
+    .upgrade-effect {
         color: var(--success-color);
         font-weight: 500;
         grid-column: 2;
