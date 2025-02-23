@@ -8,18 +8,26 @@
         damping: 0.4
     });
 
+    let pulseActive = false;
+
     function handleClick() {
         gameStore.click();
         scale.set(0.95);
         setTimeout(() => scale.set(1), 50);
+        
+        // Trigger pulse animation
+        pulseActive = true;
+        setTimeout(() => pulseActive = false, 300); // Reset after animation
     }
 </script>
 
 <button
     class="clicker-button"
+    class:pulse-active={pulseActive}
     on:click={handleClick}
     style="transform: scale({$scale})"
 >
+    <div class="pulse-ring"></div>
     Stabilize Core
 </button>
 
@@ -73,12 +81,51 @@
         pointer-events: none;
     }
 
+    .pulse-ring {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+    .pulse-active .pulse-ring::before {
+        content: '';
+        position: absolute;
+        top: -10%;
+        left: -10%;
+        width: 120%;
+        height: 120%;
+        background: radial-gradient(
+            circle,
+            transparent 20%,
+            rgba(147, 197, 253, 0.8) 20%,
+            rgba(147, 197, 253, 0.4) 30%,
+            rgba(147, 197, 253, 0.2) 40%,
+            transparent 50%
+        );
+        animation: pulse-inward 0.8s ease-out forwards;
+    }
+
     @keyframes rotate {
         from {
             transform: rotate(0deg);
         }
         to {
             transform: rotate(360deg);
+        }
+    }
+
+    @keyframes pulse-inward {
+        0% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        100% {
+            transform: scale(-0.5);
+            opacity: 0;
         }
     }
 </style>
