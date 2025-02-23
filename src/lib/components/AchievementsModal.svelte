@@ -10,6 +10,35 @@
     export let show = false;
     let selectedCategory: AchievementCategory | 'all' = 'all';
     let showResetConfirm = false;
+    let resetDialog: HTMLDialogElement;
+
+    function showResetConfirmation() {
+        showResetConfirm = true;
+        // Wait for next tick to ensure dialog element exists
+        setTimeout(() => {
+            resetDialog?.showModal();
+        }, 0);
+    }
+
+    function confirmReset() {
+        achievementStore.resetProgress();
+        resetDialog?.close();
+        showResetConfirm = false;
+    }
+
+    function cancelReset() {
+        resetDialog?.close();
+        showResetConfirm = false;
+    }
+
+    function handleDialogClick(event: MouseEvent) {
+        const rect = resetDialog.getBoundingClientRect();
+        const isInDialog = (rect.top <= event.clientY && event.clientY <= rect.top + rect.height
+            && rect.left <= event.clientX && event.clientX <= rect.left + rect.width);
+        if (!isInDialog) {
+            cancelReset();
+        }
+    }
 
     // Load base achievements on mount
     onMount(() => {
@@ -89,16 +118,7 @@
     }
 
     function handleReset() {
-        showResetConfirm = true;
-    }
-
-    function confirmReset() {
-        achievementStore.resetProgress();
-        showResetConfirm = false;
-    }
-
-    function cancelReset() {
-        showResetConfirm = false;
+        showResetConfirmation();
     }
 
     function handleClose() {
@@ -150,7 +170,11 @@
 
         <div class="modal-body">
             {#if showResetConfirm}
-                <div class="reset-confirm" transition:scale>
+                <dialog
+                    bind:this={resetDialog}
+                    class="reset-confirm-dialog"
+                    on:click={handleDialogClick}
+                >
                     <div class="reset-confirm-content">
                         <h3>⚠️ Reset Progress?</h3>
                         <p>This will permanently delete all your achievement progress. This action cannot be undone.</p>
@@ -163,7 +187,7 @@
                             </button>
                         </div>
                     </div>
-                </div>
+                </dialog>
             {/if}
 
             {#if $achievementStore.loading}
@@ -197,6 +221,14 @@
 {/if}
 
 <style>
+    :root {
+        --danger-color: #dc2626;
+    }
+
+    :global(.dark) {
+        --danger-color: #ef4444;
+    }
+
     .modal-overlay {
         position: fixed;
         top: 0;
@@ -420,5 +452,89 @@
 
     :global(.dark) .achievement {
         background: var(--widget-bg-color);
+    }
+
+    .reset-confirm-dialog {
+        border: none;
+        border-radius: 1rem;
+        padding: 0;
+        background: transparent;
+        max-width: 400px;
+        width: 90%;
+    }
+
+    .reset-confirm-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.85);
+    }
+
+    .reset-confirm-content {
+        background: var(--widget-bg-color);
+        border: 2px solid var(--border-color);
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    :global(.dark) .reset-confirm-content {
+        background: var(--widget-bg-color);
+        border-color: var(--border-color);
+    }
+
+    .reset-confirm-content h3 {
+        color: var(--danger-color);
+        margin: 0 0 1rem 0;
+        font-size: 1.5rem;
+    }
+
+    .reset-confirm-content p {
+        margin: 0 0 1.5rem 0;
+        color: var(--text-color);
+        line-height: 1.5;
+    }
+
+    .reset-confirm-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+
+    .reset-confirm-button {
+        background: var(--danger-color);
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .reset-confirm-button:hover {
+        filter: brightness(0.9);
+    }
+
+    .reset-cancel-button {
+        background: var(--widget-bg-color);
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .reset-cancel-button:hover {
+        background: var(--hover-color);
+    }
+
+    :global(.dark) .reset-cancel-button {
+        background: var(--widget-bg-color);
+        border-color: var(--border-color);
+        color: var(--text-color);
+    }
+
+    :global(.dark) .reset-cancel-button:hover {
+        background: var(--hover-color);
     }
 </style>
