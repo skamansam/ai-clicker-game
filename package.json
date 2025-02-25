@@ -19,7 +19,9 @@
 		"test:ui": "playwright test --ui",
 		"test:debug": "playwright test --debug",
 		"test:report": "playwright show-report",
-		"test:ci": "CI=1 playwright test"
+		"test:ci": "CI=1 playwright test",
+		"ci:preview": "pnpm run test:ci && pnpm run build && firebase hosting:channel:deploy pr-$GITHUB_PR_NUMBER --expires 7d",
+		"ci:deploy": "pnpm run test:ci && pnpm run build && firebase deploy --only hosting"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.50.1",

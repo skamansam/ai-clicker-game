@@ -6,7 +6,8 @@ on:
       - main
 
 jobs:
-  build_and_preview:
+  preview:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,15 +25,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build
-        run: pnpm run build
+      - name: Install Playwright Browsers
+        run: pnpm exec playwright install --with-deps
 
-      - name: Deploy to Firebase Preview Channel
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
-          projectId: quantum-shield
-          expires: 7d
+      - name: Test and Deploy Preview
+        run: pnpm run ci:preview
         env:
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
           FIREBASE_CLI_EXPERIMENTS: webframeworks
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
