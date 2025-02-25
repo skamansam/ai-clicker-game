@@ -11,6 +11,7 @@
     let selectedCategory: AchievementCategory | 'all' = 'all';
     let showResetConfirm = false;
     let resetDialog: HTMLDialogElement;
+    let achievementsDialog: HTMLDialogElement;
 
     function showResetConfirmation() {
         showResetConfirm = true;
@@ -45,9 +46,59 @@
         achievementStore.loadAchievements();
     });
 
-    // Load user achievements when auth state changes
-    $: if ($authStore) {
-        achievementStore.loadUserAchievements();
+    $: {
+        if (show) {
+            achievementsDialog?.showModal();
+        } else {
+            achievementsDialog?.close();
+        }
+    }
+
+    function handleClose() {
+        achievementsDialog?.close();
+        dispatch('close');
+    }
+
+    function handleAchievementsDialogClick(event: MouseEvent) {
+        const rect = achievementsDialog.getBoundingClientRect();
+        const isInDialog = (rect.top <= event.clientY && event.clientY <= rect.top + rect.height
+            && rect.left <= event.clientX && event.clientX <= rect.left + rect.width);
+        if (!isInDialog) {
+            handleClose();
+        }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+        if (event.key === 'Escape') {
+            dispatch('close');
+        }
+    }
+
+    function handleBackdropClick(event: MouseEvent) {
+        if (event.target === event.currentTarget) {
+            dispatch('close');
+        }
+    }
+
+    function formatCategory(category: string): string {
+        return categoryNames[category as AchievementCategory] || category;
+    }
+
+    function getCategoryIcon(category: string): string {
+        return categoryIcons[category as AchievementCategory] || '🏆';
+    }
+
+    function isUnlocked(achievementId: string): boolean {
+        return unlockedMap.has(achievementId);
+    }
+
+    function getUnlockDate(achievement: any): Date | null {
+        const unlocked = unlockedMap.get(achievement.id);
+        return unlocked ? new Date(unlocked.unlockedAt) : null;
+    }
+
+    function handleReset() {
+        showResetConfirmation();
     }
 
     const categoryIcons: Record<AchievementCategory | 'all', string> = {
@@ -88,137 +139,101 @@
     $: unlockedCount = $achievementStore.unlockedAchievements.length;
     $: totalCount = $achievementStore.achievements.length;
 
-    function handleKeyDown(event: KeyboardEvent) {
-        if (event.key === 'Escape') {
-            dispatch('close');
-        }
-    }
-
-    function handleBackdropClick(event: MouseEvent) {
-        if (event.target === event.currentTarget) {
-            dispatch('close');
-        }
-    }
-
-    function formatCategory(category: string): string {
-        return categoryNames[category as AchievementCategory] || category;
-    }
-
-    function getCategoryIcon(category: string): string {
-        return categoryIcons[category as AchievementCategory] || '🏆';
-    }
-
-    function isUnlocked(achievementId: string): boolean {
-        return unlockedMap.has(achievementId);
-    }
-
-    function getUnlockDate(achievement: any): Date | null {
-        const unlocked = unlockedMap.get(achievement.id);
-        return unlocked ? new Date(unlocked.unlockedAt) : null;
-    }
-
-    function handleReset() {
-        showResetConfirmation();
-    }
-
-    function handleClose() {
-        dispatch('close');
+    // Load user achievements when auth state changes
+    $: if ($authStore) {
+        achievementStore.loadUserAchievements();
     }
 </script>
 
-{#if show}
-<div 
-    class="modal-overlay"
-    on:click={handleBackdropClick}
-    on:keydown={handleKeyDown}
-    transition:fade={{ duration: 200 }}
->
-    <div 
-        class="modal"
-        transition:scale={{ duration: 200, start: 0.95 }}
+    <dialog
+        bind:this={achievementsDialog}
+        class="achievements-dialog"
+        on:click={handleAchievementsDialogClick}
+        transition:fade={{ duration: 2000 }}
     >
-        <div class="modal-header">
-            <h2>Achievements</h2>
-            <div class="header-controls">
-                <select 
-                    class="category-select"
-                    bind:value={selectedCategory}
-                    disabled={$achievementStore.loading}
-                >
-                    <option value="all">All Categories</option>
-                    {#each categories as category}
-                        <option value={category}>{formatCategory(category)}</option>
-                    {/each}
-                </select>
-                
-                <div class="progress">
-                    <span>{unlockedCount}</span>
-                    <span class="separator">/</span>
-                    <span>{totalCount}</span>
-                </div>
-
-                <button 
-                    class="reset-button" 
-                    on:click={handleReset}
-                    disabled={$achievementStore.loading || unlockedCount === 0}
-                >
-                    Reset
-                </button>
-            </div>
-            <button class="close-button" on:click={handleClose}>×</button>
-        </div>
-
-        <div class="modal-body">
-            {#if showResetConfirm}
-                <dialog
-                    bind:this={resetDialog}
-                    class="reset-confirm-dialog"
-                    on:click={handleDialogClick}
-                >
-                    <div class="reset-confirm-content">
-                        <h3>⚠️ Reset Progress?</h3>
-                        <p>This will permanently delete all your achievement progress. This action cannot be undone.</p>
-                        <div class="reset-confirm-actions">
-                            <button class="reset-confirm-button" on:click={confirmReset}>
-                                Yes, Reset Everything
-                            </button>
-                            <button class="reset-cancel-button" on:click={cancelReset}>
-                                Cancel
-                            </button>
-                        </div>
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Achievements</h2>
+                <div class="header-controls">
+                    <select 
+                        class="category-select"
+                        bind:value={selectedCategory}
+                        disabled={$achievementStore.loading}
+                    >
+                        <option value="all">All Categories</option>
+                        {#each categories as category}
+                            <option value={category}>{formatCategory(category)}</option>
+                        {/each}
+                    </select>
+                    
+                    <div class="progress">
+                        <span>{unlockedCount}</span>
+                        <span class="separator">/</span>
+                        <span>{totalCount}</span>
                     </div>
-                </dialog>
-            {/if}
 
-            {#if $achievementStore.loading}
-                <div class="loading">Loading achievements...</div>
-            {:else if $achievementStore.error}
-                <div class="error">{$achievementStore.error}</div>
-            {:else if filteredAchievements.length === 0}
-                <div class="empty">
-                    <div class="empty-icon">{getCategoryIcon(selectedCategory)}</div>
-                    <p>No achievements found in {formatCategory(selectedCategory).toLowerCase()}.</p>
+                    <button 
+                        class="reset-button" 
+                        on:click={handleReset}
+                        disabled={$achievementStore.loading || unlockedCount === 0}
+                    >
+                        Reset
+                    </button>
                 </div>
-            {:else}
-                <div class="achievement-list">
-                    {#each filteredAchievements as achievement (achievement.id)}
-                        <div 
-                            class={`achievement ${isUnlocked(achievement.id) ? 'unlocked' : 'locked'}`}
-                            transition:scale|local
-                        >
-                            <div class="achievement-icon">{achievement.icon || getCategoryIcon(achievement.category)}</div>
-                            <div class="achievement-info">
-                                <h3 class="achievement-name">{achievement.name}</h3>
-                                <p class="achievement-description">{achievement.description}</p>
+                <button class="close-button" on:click={handleClose}>×</button>
+            </div>
+
+            <div class="modal-body">
+                {#if showResetConfirm}
+                    <dialog
+                        bind:this={resetDialog}
+                        class="reset-confirm-dialog"
+                        on:click={handleDialogClick}
+                    >
+                        <div class="reset-confirm-content">
+                            <h3>⚠️ Reset Progress?</h3>
+                            <p>This will permanently delete all your achievement progress. This action cannot be undone.</p>
+                            <div class="reset-confirm-actions">
+                                <button class="reset-confirm-button" on:click={confirmReset}>
+                                    Yes, Reset Everything
+                                </button>
+                                <button class="reset-cancel-button" on:click={cancelReset}>
+                                    Cancel
+                                </button>
                             </div>
                         </div>
-                    {/each}
-                </div>
-            {/if}
+                    </dialog>
+                {/if}
+
+                {#if $achievementStore.loading}
+                    <div class="loading">Loading achievements...</div>
+                {:else if $achievementStore.error}
+                    <div class="error">{$achievementStore.error}</div>
+                {:else if filteredAchievements.length === 0}
+                    <div class="empty">
+                        <div class="empty-icon">{getCategoryIcon(selectedCategory)}</div>
+                        <p>No achievements found in {formatCategory(selectedCategory).toLowerCase()}.</p>
+                    </div>
+                {:else}
+                    <div class="achievement-list">
+                        {#each filteredAchievements as achievement (achievement.id)}
+                            <div 
+                                class={`achievement ${isUnlocked(achievement.id) ? 'unlocked' : 'locked'}`}
+                                transition:scale|local
+                            >
+                                <div class="achievement-icon">{achievement.icon || getCategoryIcon(achievement.category)}</div>
+                                <div class="achievement-info">
+                                    <h3 class="achievement-name">{achievement.name}</h3>
+                                    <p class="achievement-description">{achievement.description}</p>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {/if}
+            </div>
         </div>
-    </div>
-</div>
-{/if}
+    </dialog>
+
 
 <style>
     :root {
@@ -229,31 +244,28 @@
         --danger-color: #ef4444;
     }
 
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 100;
-        backdrop-filter: blur(4px);
+    .achievements-dialog {
+        border: none;
+        border-radius: 1rem;
+        padding: 0;
+        background: transparent;
+        max-width: 800px;
+        width: 90%;
+        max-height: 90vh;
+    }
+
+    .achievements-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.85);
     }
 
     .modal {
         background: var(--widget-bg-color);
-        border: 1px solid var(--border-color);
+        border: 2px solid var(--border-color);
         border-radius: 1rem;
         padding: 2rem;
-        width: 90%;
-        max-width: 800px;
-        max-height: 80vh;
-        overflow-y: auto;
-        position: relative;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
     }
 
     h2 {

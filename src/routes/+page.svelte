@@ -13,6 +13,7 @@
     import AuthButton from '$lib/components/AuthButton.svelte';
     import ThemeToggle from '$lib/components/ThemeToggle.svelte';
     import StoryLog from '$lib/components/StoryLog.svelte';
+    import AchievementsButton from '$lib/components/AchievementsButton.svelte';
     import { browser } from '$app/environment';
 
     let checkInterval: NodeJS.Timeout;
@@ -55,16 +56,7 @@
         <div class="header-content">
             <h1>Quantum Shield</h1>
             <div class="header-controls">
-                <button 
-                    class="trophy-button" 
-                    on:click={() => showAchievements = true}
-                    title="View Mission Accomplishments"
-                >
-                    🏆
-                    <span class="achievement-count">
-                        {$achievementStore.unlockedAchievements.length} / {$achievementStore.achievements.length}
-                    </span>
-                </button>
+                <AchievementsButton on:click={() => showAchievements = true} />
                 <ThemeToggle />
                 <AuthButton />
             </div>
@@ -162,27 +154,6 @@
         display: flex;
         align-items: center;
         gap: 1rem;
-    }
-
-    .trophy-button {
-        background: none;
-        border: none;
-        color: var(--text-color);
-        font-size: 1.25rem;
-        cursor: pointer;
-        padding: 0.5rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        transition: transform 0.2s ease;
-    }
-
-    .trophy-button:hover {
-        transform: scale(1.1);
-    }
-
-    .achievement-count {
-        font-size: 0.875rem;
     }
 
     .main-content {
