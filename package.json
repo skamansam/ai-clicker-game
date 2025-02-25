@@ -13,10 +13,12 @@
 		"firebase:emulators:start": "firebase emulators:start",
 		"firebase:emulators:export": "firebase emulators:export ./firebase-data",
 		"firebase:emulators:import": "firebase emulators:import ./firebase-data",
-		"dev:emulator": "firebase emulators:start & vite dev"
+		"dev:emulator": "firebase emulators:start & vite dev",
+		"firebase:deploy": "pnpm run build && firebase deploy --only hosting"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^4.0.0",
+		"@sveltejs/adapter-static": "^3.0.8",
 		"@sveltejs/kit": "^2.16.0",
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
 		"@types/firebase": "^3.2.1",
