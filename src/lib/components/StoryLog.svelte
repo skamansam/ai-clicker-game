@@ -10,8 +10,14 @@
         // Use the saved stardate from the game store if available, otherwise use current
         const stardate = $gameStore.savedStardate || $currentStardate;
         
-        // Replace any stardate references with the saved stardate
-        return content.replace(/STARDATE \d+\.\d+/g, `STARDATE ${stardate}`);
+        // Replace any stardate references with the saved stardate (ensuring 2 decimal places)
+        return content.replace(/STARDATE \d+\.\d+/g, (match) => {
+            // If it's already a placeholder with the exact format we want, keep it
+            if (match.endsWith('.00') || match.includes('.xx')) {
+                return match;
+            }
+            return `STARDATE ${stardate}`;
+        });
     }
 </script>
 

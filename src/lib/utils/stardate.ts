@@ -11,7 +11,7 @@ const STARDATE_STORAGE_KEY = 'savedStardate';
 /**
  * Calculate the current stardate based on the current date
  * Each year is approximately 1000 stardate units
- * @returns Current stardate with 1 decimal place
+ * @returns Current stardate with 2 decimal places
  */
 export function getCurrentStardate(): string {
     const now = new Date();
@@ -27,11 +27,11 @@ export function getCurrentStardate(): string {
                 ((start.getTimezoneOffset() - now.getTimezoneOffset()) * 60 * 1000);
     const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
     
-    // Calculate decimal portion (day of year / 365 * 1000)
-    const decimalPortion = Math.floor((dayOfYear / 365) * 1000) / 10;
+    // Calculate decimal portion with higher precision (day of year / 365 * 1000)
+    const decimalPortion = (dayOfYear / 365) * 100;
     
-    // Format to 1 decimal place
-    return (baseStardate + decimalPortion).toFixed(1);
+    // Format to 2 decimal places
+    return (baseStardate + decimalPortion).toFixed(2);
 }
 
 /**
