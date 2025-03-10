@@ -11,6 +11,35 @@
             gameStore.purchaseUpgrade(id);
         }
     }
+    
+    function getResourceName(resourceType) {
+        switch(resourceType) {
+            case 'crystal': return 'Crystal';
+            case 'energy': return 'Energy';
+            case 'quantum': return 'Quantum';
+            default: return 'Metal';
+        }
+    }
+    
+    function getResourceAmount(upgrade, gameState) {
+        const resourceType = upgrade.resource_type || 'metal';
+        switch(resourceType) {
+            case 'crystal': return gameState.metal; // Crystal generators cost metal
+            case 'energy': return gameState.crystal; // Energy generators cost crystal
+            case 'quantum': return gameState.energy; // Quantum generators cost energy
+            default: return gameState.metal; // Metal generators cost metal
+        }
+    }
+    
+    function getUserUpgrade(upgrade, gameState) {
+        const resourceType = upgrade.resource_type || 'metal';
+        switch(resourceType) {
+            case 'crystal': return gameState.crystalGenerators[upgrade.id];
+            case 'energy': return gameState.energyGenerators[upgrade.id];
+            case 'quantum': return gameState.quantumGenerators[upgrade.id];
+            default: return gameState.upgrades[upgrade.id];
+        }
+    }
 </script>
 
 <div class="upgrade-shop">
@@ -18,12 +47,15 @@
     
     <div class="upgrade-list">
         {#each upgrades as upgrade (upgrade.id)}
-            {@const userUpgrade = $gameStore.upgrades[upgrade.id] || {
+            {@const userUpgrade = getUserUpgrade(upgrade, $gameStore) || {
+                id: upgrade.id,
                 count: 0,
-                cost: upgrade.base_cost,
-                clicksPerSecond: upgrade.clicks_per_second
+                clicks_per_second: upgrade.clicks_per_second,
+                resource_type: upgrade.resource_type || 'metal'
             }}
-            {@const canAfford = $gameStore.clicks >= userUpgrade.cost}
+            {@const cost = Math.floor(upgrade.base_cost * Math.pow(1.15, userUpgrade?.count || 0))}
+            {@const resourceAmount = getResourceAmount(upgrade, $gameStore)}
+            {@const canAfford = resourceAmount >= cost}
             <div 
                 class="upgrade"
                 class:can-afford={canAfford}
@@ -35,11 +67,11 @@
                     <div class="name">{upgrade.name}</div>
                     <div class="description">{upgrade.description}</div>
                     <div class="stats">
-                        <div class="cost">{formatNumber(userUpgrade.cost)} clicks</div>
-                        <div class="upgrade-effect">+{upgrade.clicks_per_second.toFixed(1)} CPS</div>
+                        <div class="cost">{formatNumber(cost)} {getResourceName(upgrade.resource_type)}</div>
+                        <div class="upgrade-effect">+{upgrade.clicks_per_second.toFixed(1)} {getResourceName(upgrade.resource_type)}/s</div>
                         {#if userUpgrade.count > 0}
                             <div class="owned">Owned: {userUpgrade.count}</div>
-                            <div class="total-cps">Total: {(userUpgrade.count * upgrade.clicks_per_second).toFixed(1)} CPS</div>
+                            <div class="total-cps">Total: {(userUpgrade.count * upgrade.clicks_per_second).toFixed(1)} {getResourceName(upgrade.resource_type)}/s</div>
                         {/if}
                     </div>
                 </div>

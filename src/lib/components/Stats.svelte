@@ -5,27 +5,64 @@
     import { tweened } from 'svelte/motion';
     import { cubicOut } from 'svelte/easing';
 
-    const displayedClicks = tweened(0, {
+    // Tweened values for smooth animation
+    const displayedMetal = tweened(0, {
+        duration: 200,
+        easing: cubicOut
+    });
+    
+    const displayedCrystal = tweened(0, {
+        duration: 200,
+        easing: cubicOut
+    });
+    
+    const displayedEnergy = tweened(0, {
+        duration: 200,
+        easing: cubicOut
+    });
+    
+    const displayedQuantum = tweened(0, {
         duration: 200,
         easing: cubicOut
     });
 
-    $: displayedClicks.set($gameStore.clicks);
+    // Update tweened values when store changes
+    $: displayedMetal.set($gameStore.metal || 0);
+    $: if ($gameStore.crystalUnlocked) displayedCrystal.set($gameStore.crystal || 0);
+    $: if ($gameStore.energyUnlocked) displayedEnergy.set($gameStore.energy || 0);
+    $: if ($gameStore.quantumUnlocked) displayedQuantum.set($gameStore.quantum || 0);
 </script>
 
 <div class="stats">
     <div class="stat-item">
-        <h3>Total Clicks</h3>
-        <p>{formatNumber($gameStore.totalClicks)}</p>
+        <h3>Metal</h3>
+        <p>{formatNumber($displayedMetal)}</p>
+        <small>{formatNumber($gameStore.metalPerSecond || 0)}/s</small>
     </div>
-    <div class="stat-item">
-        <h3>Clicks Per Second</h3>
-        <p>{formatNumber($gameStore.clicksPerSecond.toFixed(1))}</p>
+    
+    {#if $gameStore.crystalUnlocked}
+    <div class="stat-item crystal">
+        <h3>Crystals</h3>
+        <p>{formatNumber($displayedCrystal)}</p>
+        <small>{formatNumber($gameStore.crystalPerSecond || 0)}/s</small>
     </div>
-    <div class="stat-item">
-        <h3>Current Clicks</h3>
-        <p>{formatNumber($displayedClicks)}</p>
+    {/if}
+    
+    {#if $gameStore.energyUnlocked}
+    <div class="stat-item energy">
+        <h3>Energy</h3>
+        <p>{formatNumber($displayedEnergy)}</p>
+        <small>{formatNumber($gameStore.energyPerSecond || 0)}/s</small>
     </div>
+    {/if}
+    
+    {#if $gameStore.quantumUnlocked}
+    <div class="stat-item quantum">
+        <h3>Quantum</h3>
+        <p>{formatNumber($displayedQuantum)}</p>
+        <small>{formatNumber($gameStore.quantumPerSecond || 0)}/s</small>
+    </div>
+    {/if}
 </div>
 
 <style>

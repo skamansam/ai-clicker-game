@@ -10,10 +10,8 @@
     import AchievementNotifications from '$lib/components/AchievementNotifications.svelte';
     import AchievementsModal from '$lib/components/AchievementsModal.svelte';
     import ShopTabs from '$lib/components/ShopTabs.svelte';
-    import AuthButton from '$lib/components/AuthButton.svelte';
-    import ThemeToggle from '$lib/components/ThemeToggle.svelte';
     import StoryLog from '$lib/components/StoryLog.svelte';
-    import AchievementsButton from '$lib/components/AchievementsButton.svelte';
+    import Header from '$lib/components/Header.svelte';
     import { browser } from '$app/environment';
 
     let checkInterval: NodeJS.Timeout;
@@ -52,16 +50,7 @@
 </script>
 
 <div class="container">
-    <header class="header">
-        <div class="header-content">
-            <h1>Quantum Shield</h1>
-            <div class="header-controls">
-                <AchievementsButton on:click={() => showAchievements = true} />
-                <ThemeToggle />
-                <AuthButton />
-            </div>
-        </div>
-    </header>
+    <Header onShowAchievements={() => showAchievements = true} />
 
     <main class="main-content">
         <div class="game-container">

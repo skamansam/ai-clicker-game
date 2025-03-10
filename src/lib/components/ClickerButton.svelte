@@ -19,7 +19,7 @@
     }
 
     function handleClick() {
-        gameStore.click();
+        gameStore.collectMetal();
         scale.set(0.95);
         setTimeout(() => scale.set(1), 50);
         triggerPulse();
@@ -28,7 +28,7 @@
     onMount(() => {
         // Set up interval to check auto-click rate and animate accordingly
         pulseInterval = setInterval(() => {
-            const autoClicksPerSecond = $gameStore.clicksPerSecond - $gameStore.manualClicksPerSecond;
+            const autoClicksPerSecond = $gameStore.metalPerSecond - $gameStore.manualMetalPerSecond;
             
             if (autoClicksPerSecond > 0) {
                 const timeBetweenClicks = 1000 / autoClicksPerSecond;

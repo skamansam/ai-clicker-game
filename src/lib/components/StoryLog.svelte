@@ -2,6 +2,17 @@
 <script lang="ts">
     import { storyStore } from '$lib/stores/story';
     import { fade, fly } from 'svelte/transition';
+    import { gameStore } from '$lib/stores/game';
+    import { currentStardate } from '$lib/utils/stardate';
+    
+    // Function to replace placeholder stardates with saved stardate
+    function updateStardateInContent(content) {
+        // Use the saved stardate from the game store if available, otherwise use current
+        const stardate = $gameStore.savedStardate || $currentStardate;
+        
+        // Replace any stardate references with the saved stardate
+        return content.replace(/STARDATE \d+\.\d+/g, `STARDATE ${stardate}`);
+    }
 </script>
 
 <div class="story-log">
@@ -11,7 +22,7 @@
             <div class="chapter" in:fly={{y: 20, duration: 500}} out:fade>
                 <h3>{chapter.title}</h3>
                 <div class="content">
-                    {chapter.content}
+                    {updateStardateInContent(chapter.content)}
                 </div>
             </div>
         {/each}

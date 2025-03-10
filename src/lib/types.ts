@@ -25,6 +25,8 @@ export interface GameState {
   updated_at: string;
 }
 
+export type ResourceType = 'metal' | 'crystal' | 'energy' | 'quantum';
+
 export interface Upgrade {
   id: string;
   name: string;
@@ -32,15 +34,33 @@ export interface Upgrade {
   clicks_per_second: number;
   description: string | null;
   created_at: string;
+  resource_type?: ResourceType;
+}
+
+export interface ResourceGenerator {
+  id: string;
+  name: string;
+  base_cost: number;
+  base_metal_cost?: number;
+  base_crystal_cost?: number;
+  base_energy_cost?: number;
+  production_rate: number;
+  description: string | null;
+  created_at: string;
+  resource_type: ResourceType;
+  unlocked_at: number;
+  prestige_required?: boolean;
 }
 
 export interface UserUpgrade {
   id: string;
-  user_id: string;
-  upgrade_id: string;
-  quantity: number;
-  created_at: string;
-  updated_at: string;
+  user_id?: string;
+  upgrade_id?: string;
+  count: number;
+  clicks_per_second: number;
+  resource_type: ResourceType;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type AchievementRequirementType = 

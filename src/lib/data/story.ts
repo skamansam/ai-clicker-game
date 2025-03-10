@@ -2,92 +2,114 @@ export interface StoryChapter {
     id: string;
     title: string;
     content: string;
-    unlocksAt: number; // total clicks required
+    unlocksAt: number; // total metal required to unlock
 }
 
 export const storyChapters: StoryChapter[] = [
     {
         id: 'intro',
-        title: 'The Last Hope',
-        content: `In the year 2157, Earth's magnetic field began to collapse. Solar radiation threatened to make the planet uninhabitable within months. 
+        title: 'Crash Landing',
+        content: `EMERGENCY LOG - STARDATE 78189.0
         
-You are humanity's last hope - the operator of the Quantum Core, an experimental device capable of generating a planetary shield. But there's a catch: the Core requires constant manual resonance adjustments through its quantum interface (aka "the button").
+Your ship has crash-landed on an uncharted planet after being caught in a gravitational anomaly. Life support systems are failing, and the ship's power core is critically damaged.
 
-Each click helps stabilize the Core's quantum field. The more stable the field, the more power we can generate.`,
+The emergency metal extractor is still functional, but requires manual operation. Each time you stabilize the core, it extracts metal from the planet's crust - the essential resource needed to repair your ship.
+
+Survival protocol activated. Begin metal extraction immediately.`,
         unlocksAt: 0
     },
     {
         id: 'first_progress',
-        title: 'Signs of Life',
-        content: `Your dedication is paying off! The Core's quantum field is beginning to stabilize. Our scientists have detected the first signs of a coherent shield forming in the upper atmosphere.
+        title: 'First Assessment',
+        content: `CAPTAIN'S LOG - DAY 3
 
-But we need more power. Much more. Keep clicking - humanity is counting on you!`,
+The metal extractor is working, but progress is slow. Initial scans show this planet has rich mineral deposits that could be used to enhance our extraction capabilities.
+
+Engineering reports that with enough metal, we can build automated extraction units for faster collection and higher output. We need to keep stabilizing the core - our survival depends on it.`,
         unlocksAt: 1000
     },
     {
         id: 'automation',
-        title: 'Breakthrough',
-        content: `Amazing discovery! The quantum resonance patterns you've established are showing signs of self-replication. We can now develop automated systems to amplify your clicks.
+        title: 'Engineering Breakthrough',
+        content: `CHIEF ENGINEER'S LOG - DAY 7
 
-The automated systems aren't perfect - they need your guidance to maintain quantum coherence. But they'll help us generate shield power much faster.`,
+Breakthrough! We've managed to create rudimentary automation for the metal extractor using salvaged parts from the damaged sections of the ship.
+
+These automated extractors aren't perfect - they're slow and inefficient - but they'll help us gather metal even when we're not actively stabilizing the core. With more metal, we can build better automation systems and eventually unlock new resource types.`,
         unlocksAt: 5000
     },
     {
-        id: 'prestige',
-        title: 'Quantum Leap',
-        content: `Incredible! The Core is exhibiting signs of quantum entanglement. Our scientists believe we can perform a "quantum reset" - temporarily shutting down the Core to reconfigure it at a higher energy state.
+        id: 'second_resource',
+        title: 'Advanced Materials',
+        content: `SCIENCE OFFICER'S LOG - DAY 12
 
-This process will reset our progress, but the knowledge gained will make the Core permanently more efficient. We call these efficiency gains "Prestige Points".`,
+We've discovered a second type of resource on this planet - a rare crystalline material with extraordinary properties. These crystals could be the key to repairing our warp drive.
+
+I've modified our extraction systems to collect these crystals, but the process is complex. It requires a significant amount of metal to power each crystal extraction cycle. The good news is that these crystals will allow us to develop even more advanced technologies.`,
         unlocksAt: 10000
     },
     {
-        id: 'golden_mouse',
-        title: 'The Golden Interface',
-        content: `The engineering team has developed a breakthrough: a gold-plated quantum interface that resonates perfectly with the Core's frequency.
+        id: 'third_resource',
+        title: 'Exotic Energy',
+        content: `SCIENCE OFFICER'S LOG - DAY 18
 
-This "Golden Mouse" upgrade will dramatically amplify the power of each click. Combined with our automated systems, we're making real progress!`,
+Incredible discovery! The crystalline materials interact with the planet's magnetic field to produce an exotic form of energy. This energy could power a distress beacon strong enough to reach Federation space.
+
+We've reconfigured our systems to harness this energy, but the process requires a significant amount of crystals. Each energy unit we collect brings us closer to establishing communication with the Federation.`,
+        unlocksAt: 25000
+    },
+    {
+        id: 'prestige',
+        title: 'Escape Velocity',
+        content: `CAPTAIN'S LOG - DAY 30
+
+We've gathered enough resources to make the ship spaceworthy again! We can now leave this planet and continue our journey.
+
+The knowledge and experience we've gained will be invaluable. I'm designating these insights as "Stellar Wisdom" - they'll allow us to work more efficiently when we reach the next planet.
+
+Prepare for liftoff!`,
         unlocksAt: 50000
     },
     {
-        id: 'time_warp',
-        title: 'Temporal Anomaly',
-        content: `Fascinating development! The intense quantum activity is creating localized time distortions around our automated systems.
+        id: 'new_planet',
+        title: 'New Horizons',
+        content: `CAPTAIN'S LOG - STARDATE 78195.3
 
-We can harness these "Time Warps" to make our automated systems run faster relative to normal space-time. The physics team is both excited and slightly terrified.`,
+We've landed on a new planet with even stranger properties than the last. Our previous experience (Stellar Wisdom) has allowed us to quickly set up improved resource collection systems.
+
+Scans show this planet has additional resource types we can utilize. The journey home will be long, but with each planet we visit, our ship grows stronger and our technology more advanced.`,
+        unlocksAt: 75000
+    },
+    {
+        id: 'advanced_upgrades',
+        title: 'Advanced Technology',
+        content: `CHIEF ENGINEER'S LOG - NEW PLANET DAY 5
+
+The Stellar Wisdom we accumulated has unlocked new technological possibilities. We've developed enhanced resource collectors and more efficient processing methods.
+
+With each planet we visit, we're able to implement more advanced systems. At this rate, we might return to Federation space with technology more advanced than when we left!`,
         unlocksAt: 100000
     },
     {
-        id: 'cosmic_power',
-        title: 'Cosmic Connection',
-        content: `The shield is starting to work! As it deflects solar radiation, we're detecting unusual energy patterns. The Core seems to be tapping into some kind of cosmic power source.
+        id: 'fourth_resource',
+        title: 'Quantum Particles',
+        content: `SCIENCE OFFICER'S LOG - NEW PLANET DAY 12
 
-By carefully tuning the shield frequency, we can amplify all our power generation methods. The universe itself is helping us!`,
+This planet's unusual radiation has led to the discovery of stable quantum particles - something theoretical until now. These particles could revolutionize our propulsion systems.
+
+The resource generator has been modified once again to collect these particles, but the process requires significant amounts of all our previous resources.`,
+        unlocksAt: 250000
+    },
+    {
+        id: 'next_journey',
+        title: 'Onward',
+        content: `CAPTAIN'S LOG - STARDATE 78201.7
+
+With our ship repaired and upgraded with the resources from this planet, we're ready to continue our journey home. Each planet we visit brings us closer to Federation space and adds to our Stellar Wisdom.
+
+The universe is vast and full of wonders. Our misfortune in crash-landing has become an opportunity for discovery. Let's see what the next world has to offer.
+
+Preparing for liftoff once again!`,
         unlocksAt: 500000
-    },
-    {
-        id: 'quantum_engine',
-        title: 'The Quantum Engine',
-        content: `This is revolutionary! The Core has started generating its own quantum resonance patterns. We've developed a "Quantum Engine" that can maintain a baseline power level without external input.
-
-It's not much, but it's honest work - and completely self-sustaining. Every little bit helps in our mission to save Earth!`,
-        unlocksAt: 1000000
-    },
-    {
-        id: 'infinity_gauntlet',
-        title: 'Project Infinity',
-        content: `We've done it! By combining all our breakthroughs, we've created something unprecedented - the Infinity Gauntlet. This masterpiece of quantum engineering can double the effectiveness of all our previous achievements.
-
-The shield is growing stronger by the day. Keep pushing, operator. Humanity's future is literally in your hands!`,
-        unlocksAt: 5000000
-    },
-    {
-        id: 'victory',
-        title: 'A New Dawn',
-        content: `Victory! The planetary shield is fully operational! Earth's magnetic field has been stabilized, and humanity is safe.
-
-But our work isn't done. The Core has revealed glimpses of other dimensions facing similar crises. As long as you keep clicking, we can extend our shield technology to help other worlds.
-
-Thank you, operator. You've saved not just our world, but opened the door to saving countless others.`,
-        unlocksAt: 10000000
     }
 ];
