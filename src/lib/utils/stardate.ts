@@ -27,11 +27,41 @@ export function getCurrentStardate(): string {
                 ((start.getTimezoneOffset() - now.getTimezoneOffset()) * 60 * 1000);
     const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
     
-    // Calculate decimal portion with higher precision (day of year / 365 * 1000)
+    // Calculate decimal portion with higher precision (day of year / 365 * 100)
+    // This gives us a value between 0-100 for the decimal portion
     const decimalPortion = (dayOfYear / 365) * 100;
     
     // Format to 2 decimal places
     return (baseStardate + decimalPortion).toFixed(2);
+}
+
+/**
+ * Ensures a stardate string has exactly 2 decimal places
+ */
+function ensureTwoDecimalPlaces(stardate: string): string {
+    // If it's already a valid stardate with 2 decimal places, return it
+    if (/^\d+\.\d{2}$/.test(stardate)) {
+        return stardate;
+    }
+    
+    // If it has 1 decimal place, add a 0
+    if (/^\d+\.\d$/.test(stardate)) {
+        return `${stardate}0`;
+    }
+    
+    // If it has more than 2 decimal places, truncate to 2
+    if (/^\d+\.\d{3,}$/.test(stardate)) {
+        const parts = stardate.split('.');
+        return `${parts[0]}.${parts[1].substring(0, 2)}`;
+    }
+    
+    // If it's a number without decimal places, add .00
+    if (/^\d+$/.test(stardate)) {
+        return `${stardate}.00`;
+    }
+    
+    // If it's not a valid stardate format, return current stardate
+    return getCurrentStardate();
 }
 
 /**
@@ -43,7 +73,8 @@ function loadSavedStardate(): string {
     try {
         const saved = localStorage.getItem(STARDATE_STORAGE_KEY);
         if (saved) {
-            return saved;
+            // Ensure the saved stardate has 2 decimal places
+            return ensureTwoDecimalPlaces(saved);
         }
     } catch (error) {
         console.error('Error loading saved stardate:', error);
@@ -75,38 +106,78 @@ function createStardateStore() {
     // Initialize with saved stardate or current
     const initialStardate = loadSavedStardate();
     
-    const { subscribe, set, update } = writable<string>(initialStardate);
+    // Ensure the initial stardate has 2 decimal places
+    const formattedInitialStardate = ensureTwoDecimalPlaces(initialStardate);
+    
+    const { subscribe, set, update } = writable<string>(formattedInitialStardate);
     
     let updateInterval: NodeJS.Timeout | undefined;
     
-    // Start the update interval
-    if (browser) {
-        updateInterval = setInterval(() => {
+    /**
+     * Initialize the stardate update timer
+     */
+    function initStardateTimer() {
+        if (!browser) return;
+        
+        // Clear any existing interval
+        if (updateInterval) {
+            clearInterval(updateInterval);
+        }
+        
+        // Update function
+        const updateStardate = () => {
             const newStardate = getCurrentStardate();
             set(newStardate);
             saveTolocalStorage(newStardate);
-        }, 10 * 60 * 1000); // Update every 10 minutes
+        };
+        
+        // Run immediately once
+        updateStardate();
+        
+        // Then set up the interval to update every 10 minutes
+        updateInterval = setInterval(updateStardate, 10 * 60 * 1000);
+        
+        return () => {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = undefined;
+            }
+        };
     }
+    
+    // Start the update timer when the store is created
+    const cleanup = initStardateTimer();
     
     return {
         subscribe,
         set: (value: string) => {
-            set(value);
-            saveTolocalStorage(value);
+            // Ensure the value has 2 decimal places
+            const formattedValue = ensureTwoDecimalPlaces(value);
+            set(formattedValue);
+            saveTolocalStorage(formattedValue);
         },
         update: (fn: (value: string) => string) => {
             update(state => {
                 const newState = fn(state);
-                saveTolocalStorage(newState);
-                return newState;
+                // Ensure the new state has 2 decimal places
+                const formattedState = ensureTwoDecimalPlaces(newState);
+                saveTolocalStorage(formattedState);
+                return formattedState;
             });
         },
         // Method to save the current stardate to game state
-        getCurrentForSave: () => get({ subscribe }),
+        getCurrentForSave: () => ensureTwoDecimalPlaces(get({ subscribe })),
         // Method to load a stardate from game state
         loadFromSave: (stardate: string) => {
-            set(stardate);
-            saveTolocalStorage(stardate);
+            // Ensure the loaded stardate has 2 decimal places
+            const formattedStardate = ensureTwoDecimalPlaces(stardate);
+            set(formattedStardate);
+            saveTolocalStorage(formattedStardate);
+        },
+        // Method to manually restart the timer (useful for testing)
+        restartTimer: () => {
+            if (cleanup) cleanup();
+            return initStardateTimer();
         }
     };
 }

@@ -3,6 +3,8 @@
     import { gameStore } from '$lib/stores/game';
     import { spring } from 'svelte/motion';
     import { onMount, onDestroy } from 'svelte';
+    import { tweened } from 'svelte/motion';
+    import { cubicOut } from 'svelte/easing';
     
     const scale = spring(1, {
         stiffness: 0.2,
@@ -12,19 +14,54 @@
     let pulseActive = false;
     let pulseInterval: NodeJS.Timeout | null = null;
     const PULSE_DURATION = 2000; // Duration of one pulse animation in ms
-
+    
+    // Generator progress tracking
+    let isGenerating = false;
+    let progressValue = 0;
+    const progress = tweened(0, {
+        duration: $gameStore.processingDelay,
+        easing: cubicOut
+    });
+    
+    // Resource being generated
+    let pendingResources = 0;
+    
     function triggerPulse() {
         pulseActive = true;
         setTimeout(() => pulseActive = false, PULSE_DURATION);
     }
 
     function handleClick() {
-        gameStore.collectMetal();
+        if (isGenerating) return; // Prevent clicking while already generating
+        
+        // Start the generation process
+        isGenerating = true;
+        
+        // Get click power from the game store
+        const clickPower = gameStore.getClickPower();
+        pendingResources = clickPower;
+        
+        // Reset and start progress animation
+        progress.set(0);
+        progress.set(100, { duration: $gameStore.processingDelay });
+        
+        // Animate button
         scale.set(0.95);
         setTimeout(() => scale.set(1), 50);
         triggerPulse();
+        
+        // Schedule resource collection after delay
+        setTimeout(() => {
+            gameStore.collectMetal();
+            isGenerating = false;
+            pendingResources = 0;
+            progress.set(0, { duration: 0 });
+        }, $gameStore.processingDelay);
     }
 
+    // Update progress value when the tweened store changes
+    $: progressValue = $progress;
+    
     onMount(() => {
         // Set up interval to check auto-click rate and animate accordingly
         pulseInterval = setInterval(() => {
@@ -56,11 +93,20 @@
 <button
     class="clicker-button"
     class:pulse-active={pulseActive}
+    class:generating={isGenerating}
     on:click={handleClick}
     style="transform: scale({$scale})"
 >
     <div class="pulse-ring"></div>
-    Stabilize Core
+    
+    {#if isGenerating}
+        <div class="progress-container">
+            <div class="progress-bar" style="width: {progressValue}%"></div>
+        </div>
+        <div class="pending-resources">+{pendingResources} generating...</div>
+    {:else}
+        <div class="button-text">Extract Metal</div>
+    {/if}
 </button>
 
 <style>
@@ -83,6 +129,15 @@
         text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         position: relative;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .generating {
+        background: linear-gradient(145deg, #3730a3, #4f46e5);
+        border-color: #6366f1;
     }
 
     .clicker-button:hover {
@@ -159,5 +214,33 @@
             transform: scale(0);
             opacity: 0;
         }
+    }
+    
+    .progress-container {
+        position: absolute;
+        bottom: 40px;
+        left: 20%;
+        width: 60%;
+        height: 8px;
+        background-color: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.8);
+        border-radius: 4px;
+        transition: width 0.1s linear;
+    }
+    
+    .pending-resources {
+        font-size: 16px;
+        margin-top: 10px;
+        color: rgba(255, 255, 255, 0.9);
+    }
+    
+    .button-text {
+        margin: 0;
     }
 </style>

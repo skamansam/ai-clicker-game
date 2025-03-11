@@ -13,7 +13,7 @@ export const storyChapters: StoryChapter[] = [
         
 Your ship has crash-landed on an uncharted planet after being caught in a gravitational anomaly. Life support systems are failing, and the ship's power core is critically damaged.
 
-The emergency metal extractor is still functional, but requires manual operation. Each time you stabilize the core, it extracts metal from the planet's crust - the essential resource needed to repair your ship.
+The emergency metal extractor is still functional, but requires manual operation. Each time you activate the extractor, it pulls metal from the planet's crust - the essential resource needed to repair your ship.
 
 Survival protocol activated. Begin metal extraction immediately.`,
         unlocksAt: 0
@@ -25,7 +25,7 @@ Survival protocol activated. Begin metal extraction immediately.`,
 
 The metal extractor is working, but progress is slow. Initial scans show this planet has rich mineral deposits that could be used to enhance our extraction capabilities.
 
-Engineering reports that with enough metal, we can build automated extraction units for faster collection and higher output. We need to keep stabilizing the core - our survival depends on it.`,
+Engineering reports that with enough metal, we can build automated extraction units for faster collection and higher output. We need to keep the metal extractor running - our survival depends on it.`,
         unlocksAt: 1000
     },
     {

@@ -10,14 +10,21 @@
         // Use the saved stardate from the game store if available, otherwise use current
         const stardate = $gameStore.savedStardate || $currentStardate;
         
-        // Replace any stardate references with the saved stardate (ensuring 2 decimal places)
-        return content.replace(/STARDATE \d+\.\d+/g, (match) => {
-            // If it's already a placeholder with the exact format we want, keep it
-            if (match.endsWith('.00') || match.includes('.xx')) {
+        // First, replace any stardate references with one decimal place
+        // This handles formats like STARDATE 78189.0 or STARDATE 78189.3
+        let updatedContent = content.replace(/STARDATE (\d+\.\d)(?![\d])/g, `STARDATE $10`);
+        
+        // Then replace any stardate references with the saved stardate
+        // This handles any remaining stardate references that don't have exactly 2 decimal places
+        updatedContent = updatedContent.replace(/STARDATE \d+\.\d+/g, (match) => {
+            // If it already has exactly 2 decimal places (like 78189.00), keep it
+            if (/STARDATE \d+\.\d{2}$/.test(match)) {
                 return match;
             }
             return `STARDATE ${stardate}`;
         });
+        
+        return updatedContent;
     }
 </script>
 

@@ -111,6 +111,12 @@ function createGameStore() {
         processingDelay: 3000 // 3 seconds delay for resource collection
     };
 
+    // Helper function to calculate click power
+    function calculateClickPower() {
+        const store = get(prestigeStore);
+        return store?.upgrades ? Math.pow(2, store.upgrades['golden_mouse'] || 0) : 1;
+    }
+
     const { subscribe, set, update } = writable<GameStore>(initialState);
 
     let saveInterval: NodeJS.Timeout | undefined;
@@ -490,8 +496,8 @@ function createGameStore() {
             
             recentClicks.push(Date.now());
 
-            const store = get(prestigeStore);
-            const clickPower = store?.upgrades ? Math.pow(2, store.upgrades['golden_mouse'] || 0) : 1;
+            // Use the helper function
+            const clickPower = calculateClickPower();
             
             update(state => ({
                 ...state,
@@ -508,6 +514,14 @@ function createGameStore() {
                     collectingMetal: false
                 }));
             }, get({ subscribe }).processingDelay);
+        },
+
+        // Get the current click power based on prestige upgrades
+        getClickPower: () => {
+            if (!browser) return 1;
+            
+            // Use the helper function
+            return calculateClickPower();
         },
 
         reset: () => {
@@ -758,13 +772,13 @@ function createGameStore() {
             // Stop sync interval
             if (syncInterval) {
                 clearInterval(syncInterval);
-                syncInterval = null;
+                syncInterval = undefined;
             }
 
             // Stop manual clicks interval
             if (manualClicksInterval) {
                 clearInterval(manualClicksInterval);
-                manualClicksInterval = null;
+                manualClicksInterval = undefined;
             }
 
             // Reset game state
@@ -786,10 +800,17 @@ function createGameStore() {
         },
         destroy: () => {
             if (browser) {
-                clearInterval(saveInterval);
-                clearInterval(autoClickInterval);
-                clearInterval(syncInterval);
-                clearInterval(manualClicksInterval);
+                if (saveInterval) clearInterval(saveInterval);
+                if (autoClickInterval) clearInterval(autoClickInterval);
+                if (syncInterval) clearInterval(syncInterval);
+                if (manualClicksInterval) clearInterval(manualClicksInterval);
+                if (resourceCheckInterval) clearInterval(resourceCheckInterval);
+                
+                saveInterval = undefined;
+                autoClickInterval = undefined;
+                syncInterval = undefined;
+                manualClicksInterval = undefined;
+                resourceCheckInterval = undefined;
             }
         }
     };
