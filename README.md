@@ -1,5 +1,7 @@
 # Quantum Shield
 
+> NOTE: The code in this repo was generated using an AI assistant. Windsurf IDE with Cascade + Claude 3.7+ was the assistant used. I have personally checked all the generated code and guided the assistant to make appropriate changes, but I still believe the code is nowhere near up-to-par with my standards, but it does work pretty well. I will continue to add features and improvements via AI as well. This notice is the only hand-made item in this entire repo. -- Samuel C Tyler 
+
 Earth's magnetic field is collapsing, and you are humanity's last hope! As the operator of the experimental Quantum Core, your mission is to generate a planetary shield by stabilizing quantum fields through precise resonance adjustments.
 
 ## The Story
